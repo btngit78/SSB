@@ -2,7 +2,7 @@ import React from "react";
 import { Label, Segment } from "semantic-ui-react";
 import FormatBody from "./formatBody";
 import "./lib/utils";
-import { song1, song2, song3, song4 } from "./mockup";
+import { song1, song2, song3, song4, song5 } from "./mockup";
 
 let songContent = "";
 
@@ -25,6 +25,8 @@ export default function SongDisplay(props) {
     songContent = song3;
   } else if (song === "This Masquerade") {
     songContent = song4;
+  } else if (song === "Để Nhớ Một Thời Ta Đã Yêu") {
+    songContent = song5;
   } else songContent = song1;
 
   lines = songContent.split("\n");
@@ -36,7 +38,7 @@ export default function SongDisplay(props) {
   //  console.log(lines);
 
   // find first non-empty line for title
-  // The song structure is mostly fixed; parse for 
+  // The song structure is mostly fixed; parse for
   // - title line
   // - authors line
   // - "key:" (optional)

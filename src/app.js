@@ -1,13 +1,27 @@
 // Copyright 2019 by Nghia Nguyen
 //
-import React, { useState, useEffect } from "react";
-import { Sidebar, Divider, Menu, Icon, Dropdown,
-  List, Button, Label, Checkbox
-  } from "semantic-ui-react";
+import React, { useState, useEffect, useContext } from "react";
+import {
+  Sidebar,
+  Divider,
+  Menu,
+  Icon,
+  Dropdown,
+  List,
+  Button,
+  Label,
+  Checkbox,
+  Dimmer,
+  Loader,
+  Message,
+  Modal
+} from "semantic-ui-react";
 import SongDisplay from "./song";
 import { setStyle } from "./lib/styling";
-import { songSets } from "./mockup";
+
 import "./app.css";
+
+import { SongContext, SongProvider } from "./store";
 
 // from proper form of key in major or minor,
 // just extract the root note which may have "b" or "#"
@@ -43,147 +57,128 @@ function useWindowWidth() {
 function App() {
   const minWidth = 600;
   const altmenuWidth = 900;
-
-  const selectionKeys = [
-    { key: 0, text: "C", value: "C" },
-    { key: 1, text: "C#", value: "C#" },
-    { key: 2, text: "Db", value: "Db" },
-    { key: 3, text: "D", value: "D" },
-    { key: 4, text: "D#", value: "D#" },
-    { key: 5, text: "Eb", value: "Eb" },
-    { key: 6, text: "E", value: "E" },
-    { key: 7, text: "F", value: "F" },
-    { key: 8, text: "F#", value: "F#" },
-    { key: 9, text: "Gb", value: "Gb" },
-    { key: 10, text: "G", value: "G" },
-    { key: 11, text: "G#", value: "G#" },
-    { key: 12, text: "Ab", value: "Ab" },
-    { key: 13, text: "A", value: "A" },
-    { key: 14, text: "A#", value: "A#" },
-    { key: 15, text: "Bb", value: "Bb" },
-    { key: 16, text: "B", value: "B" }
-  ];
-
-  const [visible, setVisible] = useState(false);
-  const [setChoice, setSetChoice] = useState(0);
-  const [songChoice, setSongChoice] = useState(0);
-  const [keyChoice, setKeyChoice] = useState(
-    getKeyForSelectControl(songSets[0].list[0].songkey)
-  );
-  const [chordOffOpt, setChordOffOpt] = useState(true);
   const width = useWindowWidth();
+  const [visible, setVisible] = useState(false);
+
+  const [searchModalOpen, setSearchModalOpen] = useState(false);
 
   setStyle();
-  console.log("Song:", songSets[setChoice].list[songChoice].name, "Key:", keyChoice);
+  // console.log(
+  //   "Song:",
+  //   songSets[setChoice].list[songChoice].name,
+  //   "Key:",
+  //   currentKey
+  // );
 
   function handleSidebarVisible(e, obj) {
     setVisible(true);
   }
+
   function handleSidebarHide(e, obj) {
     setVisible(false);
   }
 
-  function handleSetChoice(e, obj) {
-    let i = 0;
-    console.log(obj.value);
-    if (obj.value !== songSets[setChoice].name) {
-      for (i in songSets) {
-        if (obj.value === songSets[i].name) {
-          break;
-        }
-      }
-
-      setSetChoice(i);
-      setSongChoice(0);
-      setKeyChoice(getKeyForSelectControl(songSets[i].list[0].songkey));
-    }
-  }
-
-  function handleSongChoice(e, obj) {
-    let i = 0;
-    console.log(obj.value);
-    if (obj.value !== songSets[setChoice].list[songChoice].name) {
-      for (i in songSets[setChoice].list) {
-        if (obj.value === songSets[setChoice].list[i].name) {
-          break;
-        }
-      }
-      setSongChoice(i);
-      setKeyChoice(getKeyForSelectControl(songSets[setChoice].list[i].songkey));
-    }
-  }
-
-  function handleKeyChoice(e, obj) {
-    console.log(obj.value);
-    setKeyChoice(obj.value);
-  }
-
-  function handleUpKey() {
-    if (keyChoice.length === 1) {
-      if (keyChoice === "E") setKeyChoice("F");
-      else if (keyChoice === "B") setKeyChoice("C");
-      else setKeyChoice(keyChoice + "#");
+  function handleUpKey(currentKey) {
+    if (currentKey.length === 1) {
+      // key currently not sharped nor flatted
+      if (currentKey === "E") return "F";
+      else if (currentKey === "B") return "C";
+      else if (currentKey === "D") return "Eb";
+      else if (currentKey === "G") return "Ab";
+      else if (currentKey === "A") return "Bb";
+      else return currentKey + "#";
     } else {
       // sharp and flat
       let next = "";
-      if (keyChoice.charAt(1) === "b") next = keyChoice.charAt(0);
+      if (currentKey.charAt(1) === "b") next = currentKey.charAt(0);
       else {
-        if (keyChoice.charAt(0) === "G") next = "A";
-        else next = String.fromCharCode(keyChoice.charCodeAt(0) + 1);
+        if (currentKey.charAt(0) === "G") next = "A";
+        else next = String.fromCharCode(currentKey.charCodeAt(0) + 1);
       }
-      setKeyChoice(next);
+      return next;
     }
   }
 
-  function handleDownKey() {
-    if (keyChoice.length === 1) {
-      if (keyChoice === "F") setKeyChoice("E");
-      else if (keyChoice === "C") setKeyChoice("B");
-      else setKeyChoice(keyChoice + "b");
+  function handleDownKey(currentKey) {
+    if (currentKey.length === 1) {
+      // key currently not sharped nor flatted
+      if (currentKey === "F") return "E";
+      else if (currentKey === "C") return "B";
+      else return currentKey + "b";
     } else {
       // sharp and flat
       let next = "";
-      if (keyChoice.charAt(1) === "#") next = keyChoice.charAt(0);
+      if (currentKey.charAt(1) === "#") next = currentKey.charAt(0);
       else {
-        if (keyChoice.charAt(0) === "A") next = "G";
-        else next = String.fromCharCode(keyChoice.charCodeAt(0) - 1);
+        if (currentKey.charAt(0) === "A") next = "G";
+        else next = String.fromCharCode(currentKey.charCodeAt(0) - 1);
       }
-      setKeyChoice(next);
+      return next;
     }
   }
 
-  function handleChordOffOpt(e, obj) {
-    console.log(obj.checked);
-    setChordOffOpt(!chordOffOpt);
-  }
-  function handleSearch(e, obj) {
-    alert("will do search later");
-    handleSidebarHide();
-  }
   function handleEditSong(e, obj) {
     alert("will do edit later");
     handleSidebarHide();
   }
+
   function handleEditSet(e, obj) {
     alert("will do edit later");
     handleSidebarHide();
   }
+
   function handleImport(e, obj) {
     alert("will do import later");
     handleSidebarHide();
   }
+
   function handleSettings(e, obj) {
     alert("will do settings later");
     handleSidebarHide();
   }
+
   function handleLogout(e, obj) {
     alert("will do logout later");
     handleSidebarHide();
   }
 
-  return (
-    <Sidebar.Pushable>
-      <div className="App">
+  function handleSearch(e, obj) {
+    setSearchModalOpen(true);
+    handleSidebarHide();
+  }
+
+  const SearchModal = () => {
+    const handleClose = () => {
+      setSearchModalOpen(false);
+    };
+
+    return (
+      <Modal
+        open={searchModalOpen}
+        onClose={handleClose}
+        centered={false}
+        style={{ width: "70%" }}
+      >
+        <Modal.Header>Search for song</Modal.Header>
+        <Modal.Content style={{ textAlign: "center" }}>
+          <p>This will be implemented in the future.</p>
+        </Modal.Content>
+        <Modal.Actions>
+          <Button basic color="red" onClick={handleClose}>
+            <Icon name="remove" /> Cancel
+          </Button>
+          <Button color="green" onClick={handleClose}>
+            <Icon name="checkmark" /> Import selected song
+          </Button>
+        </Modal.Actions>
+      </Modal>
+    );
+  };
+
+  const SidebarMain = () => {
+    return (
+      <>
+        <SearchModal />
         <Sidebar
           as={Menu}
           animation="overlay"
@@ -213,84 +208,190 @@ function App() {
             <Icon name="log out" /> Logout
           </Menu.Item>
         </Sidebar>
+      </>
+    );
+  };
 
-        <Sidebar.Pusher dimmed={visible}>
-          <Button icon onClick={handleSidebarVisible}>
-            <Icon name="sidebar" />
-          </Button>
-          <span> </span>
-          <List horizontal size="medium">
-            {width > altmenuWidth && (
-            <List.Item>
-              <List.Content>
-                <Label color="green" size="large">
-                  Set:
-                </Label>
-                <Dropdown
-                  selection
-                  onChange={handleSetChoice}
-                  value={songSets[setChoice].name}
-                  options={songSets}
-                />
-              </List.Content>
-            </List.Item>
-            )}
-            <List.Item>
-              <List.Content>
-                <Label color="green" size="large">
-                  Song:
-                </Label>
-                <Dropdown
-                  search
-                  selection
-                  onChange={handleSongChoice}
-                  value={songSets[setChoice].list[songChoice].name}
-                  options={songSets[setChoice].list}
-                />
-              </List.Content>
-            </List.Item>
-            <List.Item>
-              <List.Content>
-                {!chordOffOpt && 
-                  <>  
-                  <b>Key: </b> 
-                  <Dropdown selection compact scrolling onChange={handleKeyChoice} value={keyChoice} options={selectionKeys} />
-                  </>
-                 }
-                 {(!chordOffOpt && (width > altmenuWidth)) && 
-                  <>
-                  <b> </b> 
-                  <Button basic size="tiny" icon="plus" onClick={handleUpKey} /> 
-                  <Button basic size="tiny" icon="minus" onClick={handleDownKey} />
-                  </>
-                }
-              </List.Content>
-            </List.Item>
-            <List.Item>
-              {width > minWidth && (
-                <List.Content verticalAlign="middle">
-                  <span>
-                    <b>Chords off: </b>
-                  </span>
-                  <Checkbox
-                    name="chordOffOpt"
-                    onClick={handleChordOffOpt}
-                    defaultChecked={chordOffOpt}
-                    toggle
-                  />
-                </List.Content>
-              )}
-            </List.Item>
-          </List>
-          <Divider />
-          <SongDisplay
-            keyVal={keyChoice}
-            song={songSets[setChoice].list[songChoice].value}
-            chordOff={chordOffOpt}
+  const SetChoiceItem = () => {
+    const [state, dispatch] = useContext(SongContext);
+
+    return (
+      <List.Item>
+        <List.Content>
+          <Label color="green" size="large">
+            Set:
+          </Label>
+          <Dropdown
+            selection
+            compact
+            onChange={(ev, obj) =>
+              dispatch({ type: "selectSet", payload: obj.value })
+            }
+            value={state.setName}
+            options={state.store.setChoiceOptions}
           />
-        </Sidebar.Pusher>
-      </div>
-    </Sidebar.Pushable>
+        </List.Content>
+      </List.Item>
+    );
+  };
+
+  const SongChoiceItem = () => {
+    const [state, dispatch] = useContext(SongContext);
+
+    return (
+      <List.Item>
+        <List.Content>
+          <Label color="green" size="large">
+            Song:
+          </Label>
+          <Dropdown
+            search
+            selection
+            onChange={(ev, obj) =>
+              dispatch({ type: "selectSong", payload: obj.value })
+            }
+            value={state.songName}
+            options={state.store.songChoiceOptions[state.setName]}
+          />
+        </List.Content>
+      </List.Item>
+    );
+  };
+
+  const SongKeySelect = () => {
+    const [state, dispatch] = useContext(SongContext);
+
+    const selectionKeys = [
+      { key: 0, text: "C", value: "C" },
+      { key: 1, text: "C#", value: "C#" },
+      { key: 2, text: "Db", value: "Db" },
+      { key: 3, text: "D", value: "D" },
+      { key: 4, text: "D#", value: "D#" },
+      { key: 5, text: "Eb", value: "Eb" },
+      { key: 6, text: "E", value: "E" },
+      { key: 7, text: "F", value: "F" },
+      { key: 8, text: "F#", value: "F#" },
+      { key: 9, text: "Gb", value: "Gb" },
+      { key: 10, text: "G", value: "G" },
+      { key: 11, text: "G#", value: "G#" },
+      { key: 12, text: "Ab", value: "Ab" },
+      { key: 13, text: "A", value: "A" },
+      { key: 14, text: "A#", value: "A#" },
+      { key: 15, text: "Bb", value: "Bb" },
+      { key: 16, text: "B", value: "B" }
+    ];
+
+    if (state.chordOff) return null;
+
+    return (
+      <>
+        <b>Key: </b>
+        <Dropdown
+          selection
+          compact
+          scrolling
+          onChange={(ev, obj) =>
+            dispatch({ type: "selectKey", payload: obj.value })
+          }
+          value={getKeyForSelectControl(state.songKey)}
+          options={selectionKeys}
+        />
+      </>
+    );
+  };
+
+  const KeyIncrementChoice = () => {
+    const [state, dispatch] = useContext(SongContext);
+
+    if (state.chordOff) return null;
+
+    return (
+      <>
+        <b> </b>
+        <Button
+          basic
+          size="tiny"
+          icon="plus"
+          onClick={() =>
+            dispatch({ type: "selectKey", payload: handleUpKey(state.songKey) })
+          }
+        />
+        <Button
+          basic
+          size="tiny"
+          icon="minus"
+          onClick={() =>
+            dispatch({
+              type: "selectKey",
+              payload: handleDownKey(state.songKey)
+            })
+          }
+        />
+      </>
+    );
+  };
+
+  const ChordOffOption = () => {
+    const [state, dispatch] = useContext(SongContext);
+
+    return (
+      <List.Content verticalAlign="middle">
+        <Checkbox
+          label="Hide chords"
+          name="chordOffOpt"
+          toggle
+          onClick={() =>
+            dispatch({ type: "chordOff", payload: !state.chordOff })
+          }
+          defaultChecked={state.chordOff}
+        />
+      </List.Content>
+    );
+  };
+
+  return (
+    <SongProvider>
+      <Sidebar.Pushable style={{ minWidth: minWidth }}>
+        <div className="App">
+          <SidebarMain />
+
+          <Sidebar.Pusher dimmed={visible}>
+            <Button icon onClick={handleSidebarVisible}>
+              <Icon name="sidebar" />
+            </Button>
+
+            <span> </span>
+
+            <List horizontal size="medium">
+              {width > altmenuWidth && <SetChoiceItem />}
+              <SongChoiceItem />
+              <List.Item>
+                <List.Content>
+                  <SongKeySelect />
+                  {width > altmenuWidth && <KeyIncrementChoice />}
+                </List.Content>
+              </List.Item>
+              <List.Item>
+                <List.Content>
+                  {width > minWidth && <ChordOffOption />}
+                </List.Content>
+              </List.Item>
+            </List>
+            <Divider />
+
+            <SongContext.Consumer>
+              {([state]) => (
+                <SongDisplay
+                  keyVal={state.songKey}
+                  song={state.songName}
+                  chordOff={state.chordOff}
+                />
+              )}
+            </SongContext.Consumer>
+          </Sidebar.Pusher>
+        </div>
+      </Sidebar.Pushable>
+    </SongProvider>
   );
 }
 

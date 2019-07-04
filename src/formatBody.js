@@ -258,19 +258,19 @@ function transposeToNewKey(fromKey, toKey, chordMap) {
       ? flats.list.substring(0, accCount)
       : "";
 
-  console.log(
-    "from: ",
-    fromKey,
-    "to: ",
-    toKey,
-    "key index: ",
-    keynum,
-    "new key index: ",
-    targetKeynum,
-    "real key: ",
-    actualNewKey,
-    accidentals
-  );
+  // console.log(
+  //   "from: ",
+  //   fromKey,
+  //   "to: ",
+  //   toKey,
+  //   "key index: ",
+  //   keynum,
+  //   "new key index: ",
+  //   targetKeynum,
+  //   "real key: ",
+  //   actualNewKey,
+  //   accidentals
+  // );
 
   // compute new chords for the map
   chordMap.forEach((value, key) =>
@@ -301,9 +301,9 @@ function transposeSong(props) {
 
   // get <key><flat/sharp> + "m" only if minor
   lastChord = findKeyInSong(lines);
-  console.log("lastChord: " + lastChord);
+  // console.log("lastChord: " + lastChord);
   if (!lastChord) {
-    console.log("Song has no chords");
+    // console.log("Song has no chords");
     return null;
   }
   if (lastChord.length > 1) {
@@ -315,11 +315,16 @@ function transposeSong(props) {
 
   // create a temporary key pattern from selected value to compare
   // then do transpose if they are different
-  let temp = keyVal.concat(
-    lastChord.charAt(lastChord.length - 1) === "m" ? "m" : ""
-  );
+  // FIX LATER: keyVal is targeted key passed from the UI,
+  // not supposed to have "m" (minor) at the end.
+  let temp;
+  if (keyVal.charAt(keyVal.length - 1) === "m") temp = keyVal;
+  else
+    temp = keyVal.concat(
+      lastChord.charAt(lastChord.length - 1) === "m" ? "m" : ""
+    );
+
   if (temp !== lastChord) {
-    console.log("keyVal: " + keyVal);
     collectAllChords(lines, chordMap);
     transposeToNewKey(lastChord, keyVal, chordMap);
     newLines = lines.map(oldline => editLine(oldline, chordMap));
@@ -407,7 +412,7 @@ export default function formatBody(props) {
 
   const recLine = typeLine => typeLines.push(typeLine);
 
-  console.log(props);
+  // console.log(props);
 
   // transpose all lines first
   if (!chordOff) lines = transposeSong(props);
@@ -429,8 +434,28 @@ export default function formatBody(props) {
 
       continue;
     }
+
     // skip comment lines
     if (lines[index].charAt(0) === "#") continue;
+
+    // dectect explicit verse marker
+    const match = lines[index].match(/verse /i);
+    if (
+      match != null &&
+      match.index === 0 &&
+      lines[index].charAt(lines[index].length - 1) === ":"
+    ) {
+      // if there was no empty line before the marker, add one
+      if (lines[index - 1] !== "") editOrigText(recLine, "", chordOff);
+
+      editOrigText(
+        recLine,
+        "Verse ".concat(lines[index].substring(6)),
+        chordOff
+      );
+      typeLines[typeLines.length - 1].type = "struct";
+      continue;
+    }
 
     // detect chorus section
     if (
@@ -482,28 +507,19 @@ function fmtLine(typeLine, idx) {
   switch (typeLine.type) {
     case "text":
       return (
-        <pre
-          key={"line" + idx}
-          style={ textStyling() }
-        >
+        <pre key={"line" + idx} style={textStyling()}>
           {typeLine.line.length ? typeLine.line : "\n"}
         </pre>
       );
     case "chord":
       return (
-        <pre
-          key={"line" + idx}
-          style={ chordStyling() }
-        >
+        <pre key={"line" + idx} style={chordStyling()}>
           {typeLine.line.length ? typeLine.line : ""}
         </pre>
       );
     case "struct":
       return (
-        <pre
-          key={"line" + idx}
-          style={ structStyling() }
-        >
+        <pre key={"line" + idx} style={structStyling()}>
           {typeLine.line.length ? typeLine.line : ""}
         </pre>
       );

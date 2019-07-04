@@ -145,89 +145,61 @@ We're [DbM7]lost in a [C7+5+9]mas ... que[Fm]rade [Fm7/Eb] [DbM7] [Dm7-5]
 And we're [Ddim7/A]lost in a [C7]mas ....que[Fm]rade [Bb] [Fm] [Bb] [Fm] (fadeout)
 `;
 
-function SongEntry(name, index) {
-  this.name = name.trim();
-  this.value = this.name;
-  this.text = this.name;
-  this.key = index;
+export const song5 = `
+Để Nhớ Một Thời Ta Đã Yêu
+Thái Thịnh
 
-  // tbd
-  this.filename = "";
-  this.author = "";
-  this.songkey = "";
-  this.styles = "";
+(intro: guitar: 1m - 4m - 5:7 - 5m:7-5 - 1:7 - 4m - 1m - 6:M7 - 5:9 - 5:7)
+
+Hạnh phúc trong tầm [Cm]với ... đã không còn [Fm]tới
+Khi vắng anh trong [Cm]đời
+Tìm đến chân trời [Fm]mới ... vẫn thương một [Bb7]thời
+Giờ đã xa ngàn [Eb]khơi [G7]
+
+Ngày đó ta lầm [Cm]lỡ ... bỏ mặc nhau hững [Fm]hờ
+Để tiếng yêu rạn [G7]vỡ ... rồi thời gian xóa [Cm]mờ [Cm/Bb]
+Mãi vô tình [Ab]đến bây giờ
+Nhận [Adim7]ra hai đứa không còn [G7]nhau
+
+Verse 2:
+Cuộc sống luôn vội [Cm]vã ... với bao nghiệt [Fm]ngã
+Xô cuốn ta miệt [Cm]mài
+Một bước chân trượt [Fm]ngã ... đã trôi thật [Bb7]dài
+Lạc mất nhau ngày [Eb]mai [G7]
+
+Còn mãi khung trời [Cm]đó ... mình gặp nhau lúc [Fm]đầu
+Ngày tháng thơ mộng [G7]đó ... cùng niềm vui nỗi [Cm]sầu [Cm/Bb]
+Sẽ ghi lại [Ab]biết bao điều
+Để [G7]nhớ một thời ta đã [Cm]yêu
+
+{soc}
+Thì thôi ta đã [Fm]lỡ lìa xa bến [Bb7]bờ
+Đời lênh đênh sóng [EbM7]vỗ buồn trôi lững [AbM7]lờ
+Cuộn mình trong nỗi [Dm7-5]nhớ cho đến bao [G7]giờ
+Mình mới quên ngày [Cm]xưa
+
+Thì thôi ta đã [Fm]hết chờ nhau sẽ [Bb7]về
+Mùa xuân nay đã [EbM7]chết vàng phai não [AbM7]nề
+Để lại bao hối [Dm7-5]tiếc ghi khắc tên [G7]người
+Gọi mãi trong đêm [Cm]buồn
+{eoc}
+
+(solo:chorus 2nd half - repeat from verse 2)
+
+Coda:
+Để lại bao hối [Ab]tiếc ghi khắc tên [G7]người
+Gọi mãi trong đêm [Cm]buồn
+
+(end: 1m - 4m - 4m, 5:7 - 1m)
+`;
+
+// find key in song text
+export function findKey(songTitle) {
+  const sl = [song1, song2, song3, song4, song5];
+
+  const song = sl.find(item => item.indexOf(songTitle) > 0);
+  if (!song) return "C";
+
+  let lines = song.split("\n");
+  return findKeyInSong(lines);
 }
-
-function SongList(name, key, type = "default") {
-  this.name = name;
-  this.value = name;
-  this.text = name;
-  this.type = type;
-  this.key = key;
-  this.list = [];
-}
-
-const songSets = [
-  new SongList("English & French", 0),
-  new SongList("Vietnamese", 1),
-  new SongList("Christmas", 2),
-  new SongList("Party 50", 3, "user"),
-  new SongList("Rock", 4, "style")
-];
-
-// direct assign for dev
-const songListEF = [
-  new SongEntry("What A Wonderful World", 0),
-  new SongEntry("Beyond The Sea", 1),
-  new SongEntry("Can't Help Falling In Love With You", 2),
-  new SongEntry("My Way", 3),
-  new SongEntry("This Masquerade", 4)
-];
-
-const songListV = [
-  new SongEntry("Gửi Gió Cho Mây Ngàn Bay", 0),
-  new SongEntry("Tôi Muốn", 1),
-  new SongEntry("Tình Tự Mùa Xuân", 2)
-];
-
-// set attribute of given song in DB.  Only 'key' right now
-// return nothing
-const setAttrs = (songname, key) => {
-  let idx;
-
-  for (idx = 0; idx < songListEF.length; idx++) {
-    if (songListEF[idx].name === songname) {
-      songListEF[idx].songkey = key;
-      console.log(songname, key);
-      return;
-    }
-  }
-  for (idx = 0; idx < songListV.length; idx++) {
-    if (songListV[idx].name === songname) {
-      songListV[idx].songkey = key;
-      return;
-    }
-  }
-};
-
-// setup attributes for mockup data
-//
-function setSongsDB(setAttrs) {
-  const findKey = song => {
-    let lines = song.split("\n");
-    return findKeyInSong(lines);
-  };
-
-  setAttrs("What A Wonderful World", findKey(song1));
-  setAttrs("Gửi Gió Cho Mây Ngàn Bay", findKey(song2));
-  setAttrs("Beyond The Sea", findKey(song3));
-  setAttrs("This Masquerade", findKey(song4));
-}
-
-(function mockupSetup() {
-songSets[0].list = songListEF;
-songSets[1].list = songListV;
-setSongsDB(setAttrs);
-})();
-
-export { songSets };
