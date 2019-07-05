@@ -76,7 +76,7 @@ export function songStoreReducer(state, action) {
 const songStore = {
   songSets: new Map(),
   setChoiceOptions: [],
-  songChoiceOptions: []
+  songChoiceOptions: {}
 };
 
 const initialState = {
@@ -135,7 +135,7 @@ function SongStoreInit(props) {
 
   // build song tables grouped by language
   data.songs.map(song => installSong(song));
-  // sorted the 'language' song sets
+  // sorted the 'language' song sets in place
   songSets.forEach((value, key, map) =>
     map.set(key, value.sort((a, b) => a.title.localeCompare(b.title)))
   );
@@ -150,7 +150,7 @@ function SongStoreInit(props) {
 
   // build set select list (text/value) for display
   songSets.forEach((value, key, map) =>
-    state.store.setChoiceOptions.push({ text: key.concat("   "), value: key })
+    state.store.setChoiceOptions.push({ text: key, value: key })
   );
 
   // build song select list (text/value) for display
@@ -171,15 +171,24 @@ function SongStoreInit(props) {
 /* ========================================================================= */
 // for testing state tracking (copying/changes)
 let testCount = 0;
+let stateRef;
 let storeRef;
 
 function Test(props) {
   const [state] = useContext(SongContext);
 
   if (testCount === 0) {
+    stateRef = state;
     storeRef = state.store;
   } else {
-    console.log("Same store: ", storeRef === state.store);
+    console.log(
+      "Same state: ",
+      stateRef === state,
+      "   ",
+      "Same store: ",
+      storeRef === state.store
+    );
+    if (stateRef !== state) stateRef = state;
     if (storeRef !== state.store) storeRef = state.store;
   }
   console.log(`Test rendering ${testCount++} :`, state);
