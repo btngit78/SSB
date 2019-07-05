@@ -212,8 +212,11 @@ function App() {
     );
   };
 
+  // add "minWidth" to dropdown due to the dropdown being too small with single word
   const SetChoiceItem = () => {
     const [state, dispatch] = useContext(SongContext);
+
+    if (state.store.songSets.size < 2) return null;
 
     return (
       <List.Item>
@@ -229,6 +232,7 @@ function App() {
             }
             value={state.setName}
             options={state.store.setChoiceOptions}
+            style={{ minWidth: "110px" }}
           />
         </List.Content>
       </List.Item>
