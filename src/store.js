@@ -7,7 +7,35 @@ import {
 } from "@apollo/react-hooks";
 import gql from "graphql-tag";
 import { Dimmer, Loader, Message } from "semantic-ui-react";
-import { findKey } from "./mockup";
+
+// song in-mem DB, built at init time.
+// Theoritically shoud be in context state too but separate into this object
+// to avoid the cost of copying the whole song DB due to 'reducer' method of updating
+// state separately through 'dispatch'.
+// Therefore, only the reference to songStore is duplicated normally.
+// When we eventually do add/delete set/song, another reducer & context is needed or
+// we can use useState to handle this separately from mere set/song selection changes.
+const songStore = {
+  songSets: new Map(),
+  setChoiceOptions: [],
+  songChoiceOptions: {}
+};
+
+// initial state values
+const initialState = {
+  setName: "",
+  songSetIndex: 0,
+  songName: "",
+  authors: "",
+  songKey: "C",
+  songToKey: "C",
+  songKeywords: "",
+  songId: "",
+  songContent: "",
+  noChords: true,
+  chordOff: false,
+  store: songStore
+};
 
 const client = new ApolloClient({
   uri: "http://localhost:1337/graphql"
@@ -19,43 +47,68 @@ const GET_SONGS_SORT = gql`
       id
       title
       authors
+      key
+      keywords
       language
     }
   }
 `;
 
-const GET_SONG_CONTENT_BY_ID = gql`
-  query GetSongContentByID($id: String!) {
+export const GET_SONG_CONTENT_BY_ID = gql`
+  query GetSongContentByID($id: ID!) {
     song(id: $id) {
       title
       authors
       content
+      key
+      keywords
     }
   }
 `;
 
 export const SongContext = React.createContext();
 
+// this is the 'reducer' function that got dispatched
+// to update the state
 export function songStoreReducer(state, action) {
+  const store = state.store;
+  let songList;
+
+  // update state display values by reading from in-mem Map DB
+  const songValues = (songList, index) => {
+    return {
+      songSetIndex: index,
+      songName: songList[index].title,
+      authors: songList[index].authors,
+      songKey: songList[index].key,
+      songKeywords: songList[index].keywords,
+      songId: songList[index].id,
+      songToKey: songList[index].key,
+      noChords: songList[index].key === "" ? true : false
+    };
+  };
+
   switch (action.type) {
     case "selectSet":
-      const firstSong = state.store.songSets.get(action.payload)[0].title;
+      // select set name and set song default to the first in list
+      songList = store.songSets.get(action.payload);
       return {
         ...state,
         setName: action.payload,
-        songName: firstSong,
-        songKey: findKey(firstSong)
+        ...songValues(songList, 0)
       };
     case "selectSong":
+      // update state with song's values
+      const index = action.payload;
+      songList = store.songSets.get(state.setName);
       return {
         ...state,
-        songName: action.payload,
-        songKey: findKey(action.payload)
+        ...songValues(songList, index)
       };
     case "selectKey":
       return {
         ...state,
-        songKey: action.payload
+        songToKey: action.payload
       };
     case "chordOff":
       return {
@@ -67,31 +120,17 @@ export function songStoreReducer(state, action) {
   }
 }
 
-// song in-mem DB, built at init time.
-// Theoritically shoud be in context state too but separate into this object
-// to avoid the cost of copying the whole song DB due to 'reducer/dispatch' coupling.
-// Therefore, only the reference to songStore is duplicated normally.
-// When we eventually do add/delete set/song, another reducer & context is needed or
-// we can use useState to handle this separately from mere set/song selection changes.
-const songStore = {
-  songSets: new Map(),
-  setChoiceOptions: [],
-  songChoiceOptions: {}
-};
-
-const initialState = {
-  setName: "",
-  songName: "",
-  songKey: "C",
-  chordOff: false,
-  store: songStore
-};
-
+// Initialize the store by doing query the entire DB's song titles.
+// This is feasible for DB with just a few thousand entries but perhaps
+// will need to move to a cache+LRUs later.
+// Return a "loading" component while loading, "error" if running into one,
+// or "null" componext (for display) but not before initialize the store.
 function SongStoreInit(props) {
   const { data, loading, error } = useQuery(GET_SONGS_SORT);
   const [state] = useContext(SongContext);
-
   const songSets = state.store.songSets;
+
+  console.log("--- SongStoreInit");
 
   function installSong(song) {
     let songList;
@@ -104,9 +143,10 @@ function SongStoreInit(props) {
     songList = songSets.get(song.language);
     songList.push({
       title: song.title,
-      authors: song.authors,
-      songkey: null,
-      id: song.id
+      authors: song.authors !== null ? song.authors : "",
+      key: song.key !== null ? song.key : "",
+      keywords: song.keywords !== null ? song.keywords : "",
+      id: song.id,
     });
   }
 
@@ -140,26 +180,21 @@ function SongStoreInit(props) {
     map.set(key, value.sort((a, b) => a.title.localeCompare(b.title)))
   );
 
-  // initalize the default song to display first
-  state.setName = Array.from(songSets.keys())[0];
-  const list = songSets.get(state.setName);
-  state.songName = list[0].title;
-  state.songKey = findKey(state.songName);
-
-  // TODO: queyry to fetch the default song; modify the above if we gonna extract the defaul song's name from local storage
+  // TODO: queyry to fetch all 'saved' values from local-storage
+  // and set initial default set/song/etc. to saved values.
 
   // build set select list (text/value) for display
-  songSets.forEach((value, key, map) =>
-    state.store.setChoiceOptions.push({ text: key, value: key })
-  );
+  songSets.forEach((value, key, map) => {
+    state.store.setChoiceOptions.push({ text: key, value: key });
+    state.store.songChoiceOptions[key] = [];
+  });
 
   // build song select list (text/value) for display
   songSets.forEach((value, key, map) => {
-    state.store.songChoiceOptions[key] = [];
     value.forEach((cur, index) =>
       state.store.songChoiceOptions[key].push({
         text: cur.title,
-        value: cur.title
+        value: index
       })
     );
   });
@@ -197,10 +232,23 @@ function Test(props) {
 }
 /* ========================================================================= */
 
+// Component to provide song context/store for the React UI
 export function SongProvider(props) {
   const [state, dispatch] = useReducer(songStoreReducer, initialState);
   const [loadingError, setLoadingError] = useState(false);
   const [storeReady, setStoreReady] = useState(false);
+  const [initDefault, setInitDefault] = useState(false);
+  const songSets = state.store.songSets;
+
+  console.log("--- Song Provider");
+
+  const initDefaultSetSong = () => {
+    if (!initDefault) {
+      dispatch({ type: "selectSet", payload: Array.from(songSets.keys())[0] });
+      setInitDefault(true);
+    }
+    return initDefault ? true : false;
+  };
 
   return (
     <SongContext.Provider value={[state, dispatch]}>
@@ -212,7 +260,7 @@ export function SongProvider(props) {
           />
         )}
       </ApolloProvider>
-      {!loadingError && storeReady && props.children}
+      {!loadingError && storeReady && initDefaultSetSong() && props.children}
       <Test />
     </SongContext.Provider>
   );

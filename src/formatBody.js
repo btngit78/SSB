@@ -40,7 +40,7 @@ const getKeynum = keyStr =>
     : 0);
 
 // create new line with the chords transposed
-// return the new line
+// - return the new line
 function editLine(cline, chordMap) {
   let newline = "";
   let oldchord = "";
@@ -71,13 +71,13 @@ function editLine(cline, chordMap) {
 }
 
 // find the sharp or flat side that the key is in and its index for number of accidentals
-// call back 'resp' to return the side (sharp/flat) and count of accidentals
-function findSideAndKeyindex(key, resp) {
+// - call back 'resp' to return the side (sharp/flat) and count of accidentals
+function findSideAndKeyindex(key, respCB) {
   let s = 0,
     idx = 0;
 
   if (key === "C" || key === "Am") {
-    return resp(0, 0);
+    return respCB(0, 0);
   }
 
   if (key.charAt(key.length - 1) !== "m") {
@@ -88,7 +88,7 @@ function findSideAndKeyindex(key, resp) {
       idx = flats.majorKeys.indexOf(key);
       if (idx < 0) {
         console.log("Problem: not a major key:", key);
-        return resp(0, 0);
+        return respCB(0, 0);
       }
       s = -1;
     }
@@ -100,18 +100,18 @@ function findSideAndKeyindex(key, resp) {
       idx = flats.minorKeys.indexOf(key);
       if (idx < 0) {
         console.log("Problem: not a minor key:", key);
-        return resp(0, 0);
+        return respCB(0, 0);
       }
       s = -1;
     }
   }
   idx = idx + 1; // from index 0
 
-  return resp(s, idx);
+  return respCB(s, idx);
 }
 
 // from interval number (number 0-11 offset from A), get the transposed note
-// return the transposed note
+// - return the transposed note
 function transposeToNewNote(inum, side, accidentals) {
   let idx = 0;
   let note = "";
@@ -154,7 +154,7 @@ function transposeToNewNote(inum, side, accidentals) {
 }
 
 // transpose one chord in quoted notation w/o bass to new key
-// return the new chord
+// - return the new chord
 function transposeOneChord(fromChord, delta, side, accidentals) {
   let frNum = getKeynum(fromChord.substring(1));
   let cindex = isSharpOrFlat(fromChord.charAt(2)) ? 3 : 2; // anything after the main note
@@ -183,7 +183,7 @@ function transposeOneChord(fromChord, delta, side, accidentals) {
 
 // compute real key from fromKey and targeted toKey due to the fact that
 // only certain major scales and minor scales are possible given their accidentals
-// return the real key
+// - return the real key
 function computeRealKey(fromKey, toKey) {
   let realKey = "";
 
@@ -223,8 +223,8 @@ function computeRealKey(fromKey, toKey) {
   return realKey;
 }
 
-// transpose all chords in chordMap to new key
-// fromKey is [A-G][#b][m]
+// transpose all chords in chordMap to new key; fromKey is [A-G][#b][m]
+// - return null
 function transposeToNewKey(fromKey, toKey, chordMap) {
   let keynum = 0;
   let targetKeynum = 0;
@@ -280,12 +280,13 @@ function transposeToNewKey(fromKey, toKey, chordMap) {
 }
 
 // transpose the song if target key is different from default
-// return the complete song via an array of lines
-function transposeSong(props) {
-  let { lines, keyVal } = props;
+// - return the complete song via an array of lines
+function transposeSong(state, lines) {
+  let toKey = state.songToKey;
+  let fromKey = state.songKey;
   let lastChord = "";
   const chordMap = new Map();
-  let newLines;
+  let newLines = [];
 
   // collect all chords in the song into the chordMap
   function collectAllChords(lines, chordMap) {
@@ -299,34 +300,49 @@ function transposeSong(props) {
     });
   }
 
-  // get <key><flat/sharp> + "m" only if minor
-  lastChord = findKeyInSong(lines);
-  // console.log("lastChord: " + lastChord);
-  if (!lastChord) {
-    // console.log("Song has no chords");
-    return null;
-  }
-  if (lastChord.length > 1) {
-    let idx = lastChord.match(/m$/i).index;
-    if (idx > 0) {
-      lastChord = lastChord.slice(0, lastChord[idx] === "M" ? idx : idx + 1);
+  // --- main of 'transposeSong' ---
+  // if chord display is off, no need to transpose
+  if (state.chordOff) return lines;
+
+  if (fromKey === "") {
+    // song have been not assigned a key, see if we can
+    // determine its key (assuming song ends in normal pattern and
+    // did not change tone in the middle of the song).
+    // this auto-detect key will not work otherwise
+    lastChord = findKeyInSong(lines);
+    if (!lastChord) {
+      state.noChords = true;
+    } else {
+      state.noChords = false;
+      // get <key><flat/sharp> + "m" only if minor
+      if (lastChord.length > 1) {
+        let idx = lastChord.match(/m$/i).index;
+        if (idx > 0) {
+          lastChord = lastChord.slice(
+            0,
+            lastChord[idx] === "M" ? idx : idx + 1
+          );
+        }
+      }
+      fromKey = state.songKey = lastChord;
+      console.log("assigned key to song: " + lastChord);
     }
   }
 
+  // if nominal key was assigned in song but no chords,
+  // return song as is
+  if (state.noChords) return lines;
+
   // create a temporary key pattern from selected value to compare
   // then do transpose if they are different
-  // FIX LATER: keyVal is targeted key passed from the UI,
-  // not supposed to have "m" (minor) at the end.
   let temp;
-  if (keyVal.charAt(keyVal.length - 1) === "m") temp = keyVal;
+  if (toKey.charAt(toKey.length - 1) === "m") temp = toKey;
   else
-    temp = keyVal.concat(
-      lastChord.charAt(lastChord.length - 1) === "m" ? "m" : ""
-    );
+    temp = toKey.concat(fromKey.charAt(fromKey.length - 1) === "m" ? "m" : "");
 
-  if (temp !== lastChord) {
+  if (temp !== fromKey) {
     collectAllChords(lines, chordMap);
-    transposeToNewKey(lastChord, keyVal, chordMap);
+    transposeToNewKey(fromKey, toKey, chordMap);
     newLines = lines.map(oldline => editLine(oldline, chordMap));
     return newLines;
   }
@@ -334,8 +350,8 @@ function transposeSong(props) {
 }
 
 // edit line for chord option and transpose
-// return nothing; line edited is transferred back to caller by one or more callbacks
-function editOrigText(receiveLine, line, chordOff) {
+// - return nothing; line edited is transferred back to caller by one or more callbacks
+function editOrigText(newlineCB, line, chordOff) {
   let text = "";
   let cline = "";
   let i1, i2;
@@ -344,8 +360,8 @@ function editOrigText(receiveLine, line, chordOff) {
   let cumaddspace = 0;
 
   if (chordOff) {
-    // console.log(line.match(chordRegExp));
-    receiveLine(typeLine("text", line.replace(chordRegExp, ""))); // text line
+    // stripped the chords and return pure text line
+    newlineCB(typeLine("text", line.replace(chordRegExp, "")));
     return;
   }
 
@@ -395,36 +411,46 @@ function editOrigText(receiveLine, line, chordOff) {
     prev = i1 >= 0 ? (i2 > 0 ? i2 + 1 : -1) : -1;
   } while (prev > 0);
 
-  if (cline.length) receiveLine(typeLine("chord", cline));
+  if (cline.length) newlineCB(typeLine("chord", cline));
 
-  receiveLine(typeLine("text", text));
+  newlineCB(typeLine("text", text));
 }
 
 // go thru content line by line and transform each line into text for display
-// return React content for rendering
+// - return React content for rendering
 export default function formatBody(props) {
-  let { lines, skip, chordOff } = props;
+  const state = props.state;
+  let chordOff = state.chordOff;
+  let lines = [];
+  let index = 0;
+
   let chorusSection = false;
   // let codaSection = false;
-  let index = 0;
   let manualChorus = false;
   let typeLines = [];
 
-  const recLine = typeLine => typeLines.push(typeLine);
+  const recLineCB = typedLine => typeLines.push(typedLine);
 
-  // console.log(props);
+  console.log("--- formatBody");
 
-  // transpose all lines first
-  if (!chordOff) lines = transposeSong(props);
+  // extract lines from songContent first
+  // then trim front and back spaces
+  lines = state.songContent.split("\n");
+  for (index = 0; index < lines.length; index++) {
+    lines[index] = lines[index].trim();
+  }
 
-  // skip title+author line, then skip empty lines
-  lines.splice(0, skip);
+  // title, authors, key, and keywords have been edited out
+  // before insertion into DB already; skip any empty lines
   while (lines[0] === "") lines.splice(0, 1);
 
-  //console.log(lines);
+  lines = transposeSong(state, lines);
+
+  // transform the song (maybe transposed) to structured lines
+  // that can be formatted for display
   for (index = 0; index < lines.length; index++) {
     if (lines[index] === "") {
-      editOrigText(recLine, "", chordOff);
+      editOrigText(recLineCB, "", chordOff);
       if (manualChorus) {
         // chorus section was spelled out, line space delineated
         // we can turn off flag to signify end of chorus section
@@ -438,18 +464,18 @@ export default function formatBody(props) {
     // skip comment lines
     if (lines[index].charAt(0) === "#") continue;
 
-    // dectect explicit verse marker
-    const match = lines[index].match(/verse /i);
+    // detect explicit verse marker
+    const match = lines[index].match(/verse[\s]*/i);
     if (
       match != null &&
       match.index === 0 &&
       lines[index].charAt(lines[index].length - 1) === ":"
     ) {
       // if there was no empty line before the marker, add one
-      if (lines[index - 1] !== "") editOrigText(recLine, "", chordOff);
+      if (lines[index - 1] !== "") editOrigText(recLineCB, "", chordOff);
 
       editOrigText(
-        recLine,
+        recLineCB,
         "Verse ".concat(lines[index].substring(6)),
         chordOff
       );
@@ -470,9 +496,9 @@ export default function formatBody(props) {
       }
 
       // if there was no empty line before chorus marker, add one
-      if (lines[index - 1] !== "") editOrigText(recLine, "", chordOff);
+      if (lines[index - 1] !== "") editOrigText(recLineCB, "", chordOff);
 
-      editOrigText(recLine, "     Chorus:", chordOff);
+      editOrigText(recLineCB, "     Chorus:", chordOff);
       typeLines[typeLines.length - 1].type = "struct";
       continue;
     }
@@ -481,13 +507,13 @@ export default function formatBody(props) {
     if (lines[index].substring(0, 5).toLowerCase() === "{eoc}") {
       chorusSection = false;
       // if the line after the end of chorus marker isn't a space, add one
-      if (lines[index + 1] !== "") editOrigText(recLine, "", chordOff);
+      if (lines[index + 1] !== "") editOrigText(recLineCB, "", chordOff);
       continue;
     }
 
     if (lines[index].substring(0, 4).toLowerCase() === "coda") {
       // codaSection = true;
-      editOrigText(recLine, "Coda:", chordOff);
+      editOrigText(recLineCB, "Coda:", chordOff);
       typeLines[typeLines.length - 1].type = "struct";
       continue;
     }
@@ -495,7 +521,7 @@ export default function formatBody(props) {
     // normal lyric lines
     let newline = (chorusSection ? "     " : "") + lines[index];
 
-    editOrigText(recLine, newline, chordOff);
+    editOrigText(recLineCB, newline, chordOff);
   }
   // console.log(typeLines);
 

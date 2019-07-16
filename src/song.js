@@ -1,62 +1,42 @@
 import React from "react";
-import { Label, Segment } from "semantic-ui-react";
+import { Label, Segment, Dimmer, Loader, Message } from "semantic-ui-react";
+import { useQuery } from "@apollo/react-hooks";
 import FormatBody from "./formatBody";
 import "./lib/utils";
-import { song1, song2, song3, song4, song5 } from "./mockup";
-
-let songContent = "";
+import { GET_SONG_CONTENT_BY_ID } from "./store";
 
 export default function SongDisplay(props) {
-  const { song, keyVal, chordOff } = props;
-  let lines = [];
-  let title = "";
-  let author = "";
-  let index = 0;
+  const state = props.state;
+  const { data, loading, error } = useQuery(GET_SONG_CONTENT_BY_ID, {
+    variables: { id: state.songId }
+  });
 
-  // console.log("songDisplay", props);
-  // setup with mockup data for now
-  if (song === "My Way") {
-    songContent = `
+  console.log("--- SongDisplay");
 
-    `;
-  } else if (song === "Gửi Gió Cho Mây Ngàn Bay") {
-    songContent = song2;
-  } else if (song === "Beyond The Sea") {
-    songContent = song3;
-  } else if (song === "This Masquerade") {
-    songContent = song4;
-  } else if (song === "Để Nhớ Một Thời Ta Đã Yêu") {
-    songContent = song5;
-  } else songContent = song1;
+  if (loading)
+    return (
+      <div>
+        <Dimmer active inverted>
+          <Loader size="huge" inverted>
+            Loading song {state.songName}...
+          </Loader>
+        </Dimmer>
+      </div>
+    );
 
-  lines = songContent.split("\n");
-
-  // trim front and back spaces
-  for (index = 0; index < lines.length; index++) {
-    lines[index] = lines[index].trim();
-  }
-  //  console.log(lines);
-
-  // find first non-empty line for title
-  // The song structure is mostly fixed; parse for
-  // - title line
-  // - authors line
-  // - "key:" (optional)
-  // TODO: "keywords:" parsing
-  for (index = 0; index < lines.length; index++) {
-    title = lines[index];
-    if (title.length > 0) {
-      author = lines[index + 1]; // next line must be author
-      index += 2; // song content start index
-      if (lines[index].indexOf("key:", 0) === 0)
-        // skip the key line too
-        index++;
-      break;
-    }
+  if (error) {
+    return (
+      <div>
+        <Message size="huge">
+          <Message.Header>Error in loading data.</Message.Header>
+          <p>{error.message}</p>
+        </Message>
+      </div>
+    );
   }
 
   // return warning if song empty
-  if (title.length === 0) {
+  if (data.song.content.length === 0) {
     return (
       <Segment>
         <Label basic color="red" size="huge">
@@ -66,21 +46,19 @@ export default function SongDisplay(props) {
     );
   }
 
+  // set song content, the rest was set by dispatcher
+  state.songContent = data.song.content;
+
   return (
     <Segment basic>
-      <div className="songTitle">{title}</div>
+      <div className="songTitle">{state.songName}</div>
       <div className="songAuthor">
-        {author}
+        {state.authors}
         <br />
         <br />
       </div>
       <div className="songBody">
-        <FormatBody
-          lines={lines}
-          skip={index}
-          keyVal={keyVal}
-          chordOff={chordOff}
-        />
+        <FormatBody state={state} />
       </div>
     </Segment>
   );

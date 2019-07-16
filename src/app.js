@@ -11,9 +11,6 @@ import {
   Button,
   Label,
   Checkbox,
-  Dimmer,
-  Loader,
-  Message,
   Modal
 } from "semantic-ui-react";
 import SongDisplay from "./song";
@@ -27,12 +24,16 @@ import { SongContext, SongProvider } from "./store";
 // just extract the root note which may have "b" or "#"
 // return the key without the "m" if any
 function getKeyForSelectControl(actualKey) {
-  let l = actualKey.length;
+  let l;
+
+  if (actualKey === "") return "C"; // default
+  l = actualKey.length;
   if (l > 1) {
     if (actualKey.charAt(l - 1) === "m") {
       return actualKey.substring(0, l - 1);
     }
   }
+
   return actualKey;
 }
 
@@ -56,19 +57,13 @@ function useWindowWidth() {
 
 function App() {
   const minWidth = 600;
-  const altmenuWidth = 900;
+  const altmenuWidth = 800;
   const width = useWindowWidth();
   const [visible, setVisible] = useState(false);
-
   const [searchModalOpen, setSearchModalOpen] = useState(false);
 
+  console.log("--- App");
   setStyle();
-  // console.log(
-  //   "Song:",
-  //   songSets[setChoice].list[songChoice].name,
-  //   "Key:",
-  //   currentKey
-  // );
 
   function handleSidebarVisible(e, obj) {
     setVisible(true);
@@ -212,11 +207,14 @@ function App() {
     );
   };
 
-  // add "minWidth" to dropdown due to the dropdown being too small with single word
+  // - return null component if there's only one song set or
+  // screen width is smaller than an acceptable size and chord selection
+  // must be on
   const SetChoiceItem = () => {
     const [state, dispatch] = useContext(SongContext);
 
     if (state.store.songSets.size < 2) return null;
+    if (width < altmenuWidth && !state.chordOff) return null;
 
     return (
       <List.Item>
@@ -251,10 +249,11 @@ function App() {
           <Dropdown
             search
             selection
-            onChange={(ev, obj) =>
-              dispatch({ type: "selectSong", payload: obj.value })
-            }
-            value={state.songName}
+            onChange={(ev, obj) => {
+              console.log(obj);
+              dispatch({ type: "selectSong", payload: obj.value });
+            }}
+            value={state.songSetIndex}
             options={state.store.songChoiceOptions[state.setName]}
           />
         </List.Content>
@@ -291,13 +290,14 @@ function App() {
       <>
         <b>Key: </b>
         <Dropdown
+          disabled={state.songKey === ""}
           selection
           compact
           scrolling
           onChange={(ev, obj) =>
             dispatch({ type: "selectKey", payload: obj.value })
           }
-          value={getKeyForSelectControl(state.songKey)}
+          value={getKeyForSelectControl(state.songToKey)}
           options={selectionKeys}
         />
       </>
@@ -317,7 +317,7 @@ function App() {
           size="tiny"
           icon="plus"
           onClick={() =>
-            dispatch({ type: "selectKey", payload: handleUpKey(state.songKey) })
+            dispatch({ type: "selectKey", payload: handleUpKey(state.songToKey) })
           }
         />
         <Button
@@ -327,7 +327,7 @@ function App() {
           onClick={() =>
             dispatch({
               type: "selectKey",
-              payload: handleDownKey(state.songKey)
+              payload: handleDownKey(state.songToKey)
             })
           }
         />
@@ -367,7 +367,7 @@ function App() {
             <span> </span>
 
             <List horizontal size="medium">
-              {width > altmenuWidth && <SetChoiceItem />}
+              <SetChoiceItem />
               <SongChoiceItem />
               <List.Item>
                 <List.Content>
@@ -384,13 +384,7 @@ function App() {
             <Divider />
 
             <SongContext.Consumer>
-              {([state]) => (
-                <SongDisplay
-                  keyVal={state.songKey}
-                  song={state.songName}
-                  chordOff={state.chordOff}
-                />
-              )}
+              {([state]) => <SongDisplay state={state} />}
             </SongContext.Consumer>
           </Sidebar.Pusher>
         </div>
