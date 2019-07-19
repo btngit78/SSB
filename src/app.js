@@ -313,14 +313,19 @@ function App() {
       <>
         <b> </b>
         <Button
+          disabled={state.songKey === ""}
           basic
           size="tiny"
           icon="plus"
           onClick={() =>
-            dispatch({ type: "selectKey", payload: handleUpKey(state.songToKey) })
+            dispatch({
+              type: "selectKey",
+              payload: handleUpKey(state.songToKey)
+            })
           }
         />
         <Button
+          disabled={state.songKey === ""}
           basic
           size="tiny"
           icon="minus"

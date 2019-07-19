@@ -32,8 +32,8 @@ export function findKeyInSong(lines) {
     if (lastChord.length > 1) {
       let i = lastChord.indexOf("m");
       if (i > 0) return lastChord.substring(0, i + 1); // minor, may be flat or sharp
-      i = lastChord.match(/[#b]/);
-      if (i > 0) return lastChord.substring(0, i + 1); // major sharp or flat
+      let c = lastChord.charAt(1);
+      if (c === "#" || c === "b") return lastChord.substring(0, 2); // major sharp or flat
     }
     return lastChord.slice(0, 1); // major key, not sharp nor flat
   }

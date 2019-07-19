@@ -1,5 +1,5 @@
 import React from "react";
-import { chordRegExp, chordRegExp1, findKeyInSong } from "./lib/utils";
+import { chordRegExp, chordRegExp1 } from "./lib/utils";
 import { textStyling, chordStyling, structStyling } from "./lib/styling";
 
 const keyTab = [
@@ -284,7 +284,6 @@ function transposeToNewKey(fromKey, toKey, chordMap) {
 function transposeSong(state, lines) {
   let toKey = state.songToKey;
   let fromKey = state.songKey;
-  let lastChord = "";
   const chordMap = new Map();
   let newLines = [];
 
@@ -304,41 +303,16 @@ function transposeSong(state, lines) {
   // if chord display is off, no need to transpose
   if (state.chordOff) return lines;
 
-  if (fromKey === "") {
-    // song have been not assigned a key, see if we can
-    // determine its key (assuming song ends in normal pattern and
-    // did not change tone in the middle of the song).
-    // this auto-detect key will not work otherwise
-    lastChord = findKeyInSong(lines);
-    if (!lastChord) {
-      state.noChords = true;
-    } else {
-      state.noChords = false;
-      // get <key><flat/sharp> + "m" only if minor
-      if (lastChord.length > 1) {
-        let idx = lastChord.match(/m$/i).index;
-        if (idx > 0) {
-          lastChord = lastChord.slice(
-            0,
-            lastChord[idx] === "M" ? idx : idx + 1
-          );
-        }
-      }
-      fromKey = state.songKey = lastChord;
-      console.log("assigned key to song: " + lastChord);
-    }
-  }
-
-  // if nominal key was assigned in song but no chords,
+  // if nominal key was assigned in song but no chords, or the
+  // autodetect algo wasn't working somehow, no need to transpose
   // return song as is
-  if (state.noChords) return lines;
+  if (state.noChords || fromKey === "") return lines;
 
   // create a temporary key pattern from selected value to compare
   // then do transpose if they are different
   let temp;
   if (toKey.charAt(toKey.length - 1) === "m") temp = toKey;
-  else
-    temp = toKey.concat(fromKey.charAt(fromKey.length - 1) === "m" ? "m" : "");
+  else temp = toKey + (fromKey.charAt(fromKey.length - 1) === "m" ? "m" : "");
 
   if (temp !== fromKey) {
     collectAllChords(lines, chordMap);

@@ -41,15 +41,20 @@ const client = new ApolloClient({
   uri: "http://localhost:1337/graphql"
 });
 
+// no pagination or caching scheme to hangle larger DB (yet!)
+// this should be plenty for majority of cases
+const songsInMemLimit = 2000;
+
 const GET_SONGS_SORT = gql`
-  query GetSongSort {
-    songs(sort: "language") {
+  query GetSongSort($limit: Int!) {
+    songs(sort: "title", limit: $limit) {
       id
       title
       authors
       key
       keywords
       language
+      tempo
     }
   }
 `;
@@ -126,7 +131,9 @@ export function songStoreReducer(state, action) {
 // Return a "loading" component while loading, "error" if running into one,
 // or "null" componext (for display) but not before initialize the store.
 function SongStoreInit(props) {
-  const { data, loading, error } = useQuery(GET_SONGS_SORT);
+  const { data, loading, error } = useQuery(GET_SONGS_SORT, {
+    variables: { limit: songsInMemLimit }
+  });
   const [state] = useContext(SongContext);
   const songSets = state.store.songSets;
 
@@ -146,7 +153,8 @@ function SongStoreInit(props) {
       authors: song.authors !== null ? song.authors : "",
       key: song.key !== null ? song.key : "",
       keywords: song.keywords !== null ? song.keywords : "",
-      id: song.id,
+      tempo: song.tempo > 0 ? song.tempo : "",
+      id: song.id
     });
   }
 
@@ -173,18 +181,23 @@ function SongStoreInit(props) {
     );
   }
 
+  console.log("Total song entries fetched: " + data.songs.length);
+
   // build song tables grouped by language
   data.songs.map(song => installSong(song));
-  // sorted the 'language' song sets in place
-  songSets.forEach((value, key, map) =>
-    map.set(key, value.sort((a, b) => a.title.localeCompare(b.title)))
-  );
+  // tb-removed: no longer need to do this
+  // songSets.forEach((value, key, map) =>
+  //   map.set(key, value.sort((a, b) => a.title.localeCompare(b.title)))
+  // );
 
   // TODO: queyry to fetch all 'saved' values from local-storage
   // and set initial default set/song/etc. to saved values.
 
   // build set select list (text/value) for display
   songSets.forEach((value, key, map) => {
+    console.log(
+      "Set [" + key + "] has " + songSets.get(key).length + " entries."
+    );
     state.store.setChoiceOptions.push({ text: key, value: key });
     state.store.songChoiceOptions[key] = [];
   });
