@@ -1,7 +1,7 @@
 export const getWidth = () => window.innerWidth;
 
-export const chordRegExp = /\[[A-G][#b]?[+A-Za-z\d-]*(\/[A-G][#b]*)?\]/g;
-export const chordRegExp1 = /\[[A-G][#b]?[+A-Za-z\d-]*(\/[A-G][#b]*)?\]/;
+export const chordRegExp = /\[[A-G][#b]?[+A-Za-z\d-]*(\(\d\))?(\/[A-G][#b]*)?\]/g;
+export const chordRegExp1 = /\[[A-G][#b]?[+A-Za-z\d-]*(\(\d\))?(\/[A-G][#b]*)?\]/;
 
 // find the key in the song which is passed as an array of lines
 // return the key in standard notation (A-G and # or b) if found
