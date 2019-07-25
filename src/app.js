@@ -248,6 +248,7 @@ function App() {
           </Label>
           <Dropdown
             search
+            deburr
             selection
             onChange={(ev, obj) => {
               console.log(obj);

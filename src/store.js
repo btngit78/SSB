@@ -125,10 +125,29 @@ export function songStoreReducer(state, action) {
   }
 }
 
+function installSong(songSets, song) {
+  let songList;
+
+  if (!songSets.has(song.language)) {
+    // create new set for language
+    songSets.set(song.language, []);
+  }
+  // add song to pre-existing language set
+  songList = songSets.get(song.language);
+  songList.push({
+    title: song.title,
+    authors: song.authors !== null ? song.authors : "",
+    key: song.key !== null ? song.key : "",
+    keywords: song.keywords !== null ? song.keywords : "",
+    tempo: song.tempo > 0 ? song.tempo : "",
+    id: song.id
+  });
+}
+
 // Initialize the store by doing query the entire DB's song titles.
 // This is feasible for DB with just a few thousand entries but perhaps
 // will need to move to a cache+LRUs later.
-// Return a "loading" component while loading, "error" if running into one,
+// -- Return a "loading" component while loading, "error" if running into one,
 // or "null" componext (for display) but not before initialize the store.
 function SongStoreInit(props) {
   const { data, loading, error } = useQuery(GET_SONGS_SORT, {
@@ -139,24 +158,8 @@ function SongStoreInit(props) {
 
   console.log("--- SongStoreInit");
 
-  function installSong(song) {
-    let songList;
-
-    if (!songSets.has(song.language)) {
-      // create new set for language
-      songSets.set(song.language, []);
-    }
-    // add song to pre-existing language set
-    songList = songSets.get(song.language);
-    songList.push({
-      title: song.title,
-      authors: song.authors !== null ? song.authors : "",
-      key: song.key !== null ? song.key : "",
-      keywords: song.keywords !== null ? song.keywords : "",
-      tempo: song.tempo > 0 ? song.tempo : "",
-      id: song.id
-    });
-  }
+  // TODO: queyry to fetch all 'saved' values from local-storage
+  // and set initial default set/song/etc. to saved values.
 
   if (loading)
     return (
@@ -184,26 +187,20 @@ function SongStoreInit(props) {
   console.log("Total song entries fetched: " + data.songs.length);
 
   // build song tables grouped by language
-  data.songs.map(song => installSong(song));
-  // tb-removed: no longer need to do this
-  // songSets.forEach((value, key, map) =>
-  //   map.set(key, value.sort((a, b) => a.title.localeCompare(b.title)))
-  // );
-
-  // TODO: queyry to fetch all 'saved' values from local-storage
-  // and set initial default set/song/etc. to saved values.
+  data.songs.map(song => installSong(songSets, song));
 
   // build set select list (text/value) for display
+  const tmp = [...songSets.keys()].sort();
+  tmp.forEach(val =>
+    state.store.setChoiceOptions.push({ text: val, value: val })
+  );
+
+  // build song select list (text/value) for display
   songSets.forEach((value, key, map) => {
     console.log(
       "Set [" + key + "] has " + songSets.get(key).length + " entries."
     );
-    state.store.setChoiceOptions.push({ text: key, value: key });
     state.store.songChoiceOptions[key] = [];
-  });
-
-  // build song select list (text/value) for display
-  songSets.forEach((value, key, map) => {
     value.forEach((cur, index) =>
       state.store.songChoiceOptions[key].push({
         text: cur.title,
