@@ -74,42 +74,43 @@ function App() {
   }
 
   function handleUpKey(currentKey) {
+    let minor = currentKey.endsWith("m");
+    if (minor) currentKey = currentKey.split("m")[0];
+
     if (currentKey.length === 1) {
-      // key currently not sharped nor flatted
-      if (currentKey === "E") return "F";
-      else if (currentKey === "B") return "C";
-      else if (currentKey === "D") return "Eb";
-      else if (currentKey === "G") return "Ab";
-      else if (currentKey === "A") return "Bb";
-      else return currentKey + "#";
+      //  no sharp or flat
+      currentKey =
+        currentKey === "E" ? "F" : currentKey === "B" ? "C" : currentKey + "#";
     } else {
       // sharp and flat
-      let next = "";
-      if (currentKey.charAt(1) === "b") next = currentKey.charAt(0);
-      else {
-        if (currentKey.charAt(0) === "G") next = "A";
-        else next = String.fromCharCode(currentKey.charCodeAt(0) + 1);
-      }
-      return next;
+      currentKey =
+        currentKey.charAt(1) === "b"
+          ? currentKey.charAt(0)
+          : currentKey.charAt(0) === "G"
+          ? "A"
+          : String.fromCharCode(currentKey.charCodeAt(0) + 1);
     }
+    return currentKey + (minor ? "m" : "");
   }
 
   function handleDownKey(currentKey) {
+    let minor = currentKey.endsWith("m");
+    if (minor) currentKey = currentKey.split("m")[0];
+
     if (currentKey.length === 1) {
-      // key currently not sharped nor flatted
-      if (currentKey === "F") return "E";
-      else if (currentKey === "C") return "B";
-      else return currentKey + "b";
+      //  no sharp or flat
+      currentKey =
+        currentKey === "C" ? "B" : currentKey === "F" ? "E" : currentKey + "b";
     } else {
       // sharp and flat
-      let next = "";
-      if (currentKey.charAt(1) === "#") next = currentKey.charAt(0);
-      else {
-        if (currentKey.charAt(0) === "A") next = "G";
-        else next = String.fromCharCode(currentKey.charCodeAt(0) - 1);
-      }
-      return next;
+      currentKey =
+        currentKey.charAt(1) === "#"
+          ? currentKey.charAt(0)
+          : currentKey.charAt(0) === "A"
+          ? "G"
+          : String.fromCharCode(currentKey.charCodeAt(0) - 1);
     }
+    return currentKey + (minor ? "m" : "");
   }
 
   function handleEditSong(e, obj) {

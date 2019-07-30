@@ -24,11 +24,17 @@ const flats = {
 };
 
 const keyMap = new Map(keyTab);
-
-const typeLine = (type = "text", line = "") => ({ type, line });
+const rootNoteExp = /[A-G][#b]?/;
+const dimChordExp = /[A-G][#b]?dim7/;
+const keyExp = /[A-G][#b]?m?/;
 
 const isSharpOrFlat = c => c === "#" || c === "b";
+// const majorScaleOffSeq = [0, 2, 2, 1, 2, 2, 2, 1];
+// const minorScaleOffSeq = [0, 2, 1, 2, 2, 2, 1, 1];
 
+const typeLineObj = (type = "text", line = "") => ({ type, line });
+
+// given a note, get the key number per keyTab
 const getKeynum = keyStr =>
   keyMap.get(keyStr.charAt(0)) +
   (keyStr.length > 1
@@ -38,6 +44,76 @@ const getKeynum = keyStr =>
       ? -1
       : 0
     : 0);
+
+// given a key number, get the note string, sharp if between as default
+const getKeytxt = (keyNum, sharp = true) => {
+  let i;
+  let k = keyNum % 12;
+
+  for (i = keyTab.length - 1; i >= 0; i--) {
+    if (keyTab[i][1] <= k) break;
+  }
+  return k > keyTab[i][1]
+    ? sharp
+      ? keyTab[i][0] + "#"
+      : keyTab[i + 1][0] + "b"
+    : keyTab[i][0];
+};
+
+// get the accidental series given side and count
+const getAccidentals = (side, count) => {
+  return side > 0
+    ? sharps.list.substring(0, count)
+    : side < 1
+    ? flats.list.substring(0, count)
+    : "";
+};
+
+// if the main key of the song is on sharp key, proposed new key should also
+// be sharp, and vice versa.  if main key is C, then proposed new key should be
+// one of the flats
+// - return the bias key
+const biasSelectKey = (pkey, mainKey) => {
+  const unisons = [
+    ["F#", "Gb"],
+    ["C#", "Db"],
+    ["C#m", "Dbm"],
+    ["G#m", "Abm"],
+    ["D#m", "Ebm"],
+    ["A#m", "Bbm"]
+  ];
+
+  if (
+    flats.majorKeys.indexOf(mainKey) >= 0 ||
+    flats.minorKeys.indexOf(mainKey) >= 0
+  ) {
+    // bias flat
+    if (pkey.length > 1) {
+      if (pkey.charAt(1) === "#") {
+        let idx = unisons.findIndex(e => e[0] === pkey);
+        if (idx >= 0) return unisons[idx][1];
+      }
+    }
+    // natural or already flatted
+    return pkey;
+  } else if (
+    sharps.majorKeys.indexOf(mainKey) >= 0 ||
+    sharps.minorKeys.indexOf(mainKey) >= 0
+  ) {
+    // bias sharp
+    if (pkey.length > 1) {
+      if (pkey.charAt(1) === "b") {
+        let idx = unisons.findIndex(e => e[1] === pkey);
+        if (idx >= 0) return unisons[idx][0];
+      }
+    }
+    // natural or already flatted
+    return pkey;
+  } else {
+    // mainKey = 'C'
+    return pkey;
+  }
+};
 
 // create new line with the chords transposed
 // - return the new line
@@ -80,7 +156,7 @@ function findSideAndKeyindex(key, respCB) {
     return respCB(0, 0);
   }
 
-  if (key.charAt(key.length - 1) !== "m") {
+  if (!key.endsWith("m")) {
     // search major keys
     idx = sharps.majorKeys.indexOf(key);
     s = idx > -1 ? 1 : 0;
@@ -110,6 +186,9 @@ function findSideAndKeyindex(key, respCB) {
   return respCB(s, idx);
 }
 
+//
+// *** TBD : should rewrite this to make it easier to read and more efficient ***
+//
 // from interval number (number 0-11 offset from A), get the transposed note
 // - return the transposed note
 function transposeToNewNote(inum, side, accidentals) {
@@ -153,13 +232,16 @@ function transposeToNewNote(inum, side, accidentals) {
   return note;
 }
 
-// transpose one chord in quoted notation w/o bass to new key
+// transpose one chord in quoted notation to new key
 // - return the new chord
 function transposeOneChord(fromChord, delta, side, accidentals) {
   let frNum = getKeynum(fromChord.substring(1));
   let cindex = isSharpOrFlat(fromChord.charAt(2)) ? 3 : 2; // anything after the main note
   let toNum = (frNum + delta) % 12;
   let newchord = "";
+  let bSide = 0;
+  let bAccCount = 0;
+  let bAccidentals = "";
 
   // console.log(fromChord, delta, side, accidentals);
   if (!delta) return fromChord; // no transposition
@@ -172,12 +254,17 @@ function transposeOneChord(fromChord, delta, side, accidentals) {
     newchord = newchord + fromChord.substring(cindex, bidx + 1); // capture part thus far
     frNum = getKeynum(fromChord.substring(bidx + 1));
     toNum = (frNum + delta) % 12;
-    newchord = newchord + transposeToNewNote(toNum, side, accidentals) + "]";
+    // use scale of the bass chord
+    findSideAndKeyindex(newchord.match(keyExp)[0], (s, count) => {
+      bSide = s;
+      bAccCount = count;
+    });
+    bAccidentals = getAccidentals(bSide, bAccCount);
+    newchord = newchord + transposeToNewNote(toNum, bSide, bAccidentals) + "]";
   }
   // no bass part
   else newchord = newchord + fromChord.substring(cindex);
 
-  // console.log(fromChord, newchord);
   return newchord;
 }
 
@@ -187,9 +274,18 @@ function transposeOneChord(fromChord, delta, side, accidentals) {
 function computeRealKey(fromKey, toKey) {
   let realKey = "";
 
-  realKey = toKey + (fromKey.charAt(fromKey.length - 1) === "m" ? "m" : "");
+  if (
+    (fromKey.endsWith("m") && !toKey.endsWith("m")) ||
+    (!fromKey.endsWith("m") && toKey.endsWith("m"))
+  ) {
+    console.log(
+      "Problem: mismatched major/minor from: " + fromKey + " and to: " + toKey
+    );
+  }
 
-  if (realKey.charAt(realKey.length - 1) !== "m") {
+  realKey = toKey;
+
+  if (!realKey.endsWith("m")) {
     // major keys: change sharp to flat or vice versa if necessary
     let temp = realKey;
     if (temp.charAt(1) === "#") {
@@ -251,26 +347,7 @@ function transposeToNewKey(fromKey, toKey, chordMap) {
 
   findSideAndKeyindex(actualNewKey, setSideAndAccCount);
 
-  accidentals =
-    side > 0
-      ? sharps.list.substring(0, accCount)
-      : side < 1
-      ? flats.list.substring(0, accCount)
-      : "";
-
-  // console.log(
-  //   "from: ",
-  //   fromKey,
-  //   "to: ",
-  //   toKey,
-  //   "key index: ",
-  //   keynum,
-  //   "new key index: ",
-  //   targetKeynum,
-  //   "real key: ",
-  //   actualNewKey,
-  //   accidentals
-  // );
+  accidentals = getAccidentals(side, accCount);
 
   // compute new chords for the map
   chordMap.forEach((value, key) =>
@@ -279,131 +356,293 @@ function transposeToNewKey(fromKey, toKey, chordMap) {
   // console.log(...chordMap);
 }
 
-// transpose the song if target key is different from default
-// - return the complete song via an array of lines
-function transposeSong(state, lines) {
-  let toKey = state.songToKey;
-  let fromKey = state.songKey;
-  const chordMap = new Map();
-  let newLines = [];
+// analyze if the key found is within scale or normal pattern
+// of normal scale; diminished chord of 'between' notes are considered
+// transitional and thus likely to remain 'in key'
+// - return new key if chord is considered to be of a different key
+// or null if within same key
+function isOfDifferentKey(chord, fromKey, side, accidentals) {
+  let scaleMain = [];
+  let xNote = chord.match(rootNoteExp);
+  let fNote = fromKey.match(rootNoteExp);
 
-  // collect all chords in the song into the chordMap
-  function collectAllChords(lines, chordMap) {
-    lines.forEach(cline => {
-      let chords = cline.match(chordRegExp);
-      if (chords != null) {
-        chords.forEach(chord =>
-          !chordMap.has(chord) ? chordMap.set(chord, "") : true
+  if (xNote) xNote = xNote[0];
+  if (fNote) fNote = fNote[0];
+
+  if (xNote === fNote) {
+    // same root, then the only difference is if it goes from
+    // minor to major (or vice versa)
+    if (chord.length !== fromKey.length) {
+      if (chord.match(dimChordExp))
+        // a diminished chord!  assume no key change (TBD?)
+        return null;
+      return chord.match(keyExp)[0];
+    }
+    return null;
+  } else {
+    // not same root; see if not within scale of fromKey;
+    // build all notes in scale and compare
+    scaleMain = [...keyMap.keys()];
+    if (accidentals.length)
+      scaleMain = scaleMain.map(note =>
+        accidentals.indexOf(note) >= 0 ? note + (side ? "#" : "b") : note
+      );
+
+    // if note is not in scale
+    if (scaleMain.indexOf(xNote) < 0) {
+      // -- [??? what if root note is same tone]
+      if (chord.match(dimChordExp))
+        // diminished chord; assume it's a transition chord only
+        // no change in key
+        return null;
+      else {
+        return chord.match(keyExp)[0];
+      }
+    }
+
+    // note in scale; very unlikely to be a new key
+    return null;
+  }
+}
+
+// if song is to be transposed, go thru all chord maps and transpose each chord,
+// then go thru the text to actually replace each chord with the transposed chords inline
+// - return the typeLines with chords transposed
+function transposeStructText(
+  fromKey,
+  toKey,
+  typeLines,
+  primChordMap,
+  chorusChordMap,
+  codaChordMap,
+  chorusBlocks,
+  codaBlock
+) {
+  let side = 0;
+  let accCount = 0;
+  let accidentals = "";
+
+  // analyze given block (chorus or coda) and determine proper key
+  // then transpose the chordmap
+  function analyzeAndTransposeMap(
+    idx1,
+    idx2,
+    chordMap,
+    fromKey,
+    side,
+    accidentals,
+    toKey
+  ) {
+    let fchord;
+    let fkey;
+    let altKeynum;
+    let altKey;
+    let i;
+
+    for (i = idx1; i <= idx2; i++) {
+      // grab first chord
+      fchord = typeLines[i].line.match(chordRegExp1);
+      if (fchord) break;
+    }
+    if (fchord) {
+      fchord = fchord[0].substring(1, fchord[0].length - 1); // without the []
+
+      fkey = isOfDifferentKey(fchord, fromKey, side, accidentals);
+
+      if (fkey) {
+        // compute different base and delta for transpose
+        altKeynum =
+          (getKeynum(toKey) + (getKeynum(fkey) + 12 - getKeynum(fromKey))) % 12;
+        altKey = computeRealKey(fkey, getKeytxt(altKeynum));
+        altKey = biasSelectKey(altKey, toKey);
+
+        transposeToNewKey(fkey, altKey, chordMap);
+      } else {
+        // same key as main body
+        transposeToNewKey(fromKey, toKey, chordMap);
+      }
+    }
+  }
+
+  // go thru structured text and transpose the chords inline
+  // by replacing the old chords with new chords in the map
+  // - return nothing
+  function editLines() {
+    const withinBlock = (idx, A, B) => idx >= A && idx <= B;
+
+    typeLines.forEach((tline, index) => {
+      if (tline.type === "text") {
+        tline.line = editLine(
+          tline.line,
+          chorusBlocks.length &&
+            withinBlock(index, chorusBlocks[0], chorusBlocks[1])
+            ? chorusChordMap
+            : codaBlock.length && withinBlock(index, codaBlock[0], codaBlock[1])
+            ? codaChordMap
+            : primChordMap
         );
+      }
+      if (chorusBlocks.length && index === chorusBlocks[1]) {
+        // done with this block, remove pair
+        chorusBlocks.shift();
+        chorusBlocks.shift();
+      }
+      if (codaBlock.length && index === codaBlock[1]) {
+        // done with this block, remove pair
+        codaBlock.shift();
+        codaBlock.shift();
       }
     });
   }
 
-  // --- main of 'transposeSong' ---
-  // if chord display is off, no need to transpose
-  if (state.chordOff) return lines;
+  /*---- main of transpose ----*/
 
-  // if nominal key was assigned in song but no chords, or the
-  // autodetect algo wasn't working somehow, no need to transpose
-  // return song as is
-  if (state.noChords || fromKey === "") return lines;
-
-  // create a temporary key pattern from selected value to compare
-  // then do transpose if they are different
   let temp;
-  if (toKey.charAt(toKey.length - 1) === "m") temp = toKey;
-  else temp = toKey + (fromKey.charAt(fromKey.length - 1) === "m" ? "m" : "");
+  if (toKey.endsWith("m")) temp = toKey;
+  else temp = toKey + (fromKey.endsWith("m") ? "m" : "");
 
-  if (temp !== fromKey) {
-    collectAllChords(lines, chordMap);
-    transposeToNewKey(fromKey, toKey, chordMap);
-    newLines = lines.map(oldline => editLine(oldline, chordMap));
-    return newLines;
+  if (temp === fromKey) {
+    // no key change, no transpose
+    return typeLines;
   }
-  return lines;
+
+  // at least, primary chord map must be transposed
+  transposeToNewKey(fromKey, toKey, primChordMap);
+
+  // analyze chorus & coda sections to see if key has changed
+  // and transpose accordingly
+  findSideAndKeyindex(fromKey, (s, count) => {
+    side = s;
+    accCount = count;
+  });
+  accidentals = getAccidentals(side, accCount);
+
+  // right now, assume that chorus is different from main key
+  // at most once, and other chorus section (if any) would share same chords
+  if (chorusBlocks.length >= 2) {
+    analyzeAndTransposeMap(
+      chorusBlocks[0],
+      chorusBlocks[1],
+      chorusChordMap,
+      fromKey,
+      side,
+      accidentals,
+      toKey
+    );
+  }
+
+  // would be an error if more than one coda block
+  if (codaBlock.length >= 2) {
+    analyzeAndTransposeMap(
+      codaBlock[0],
+      codaBlock[1],
+      codaChordMap,
+      fromKey,
+      side,
+      accidentals,
+      toKey
+    );
+  }
+
+  editLines();
+  return typeLines;
 }
 
-// edit line for chord option and transpose
-// - return nothing; line edited is transferred back to caller by one or more callbacks
-function editOrigText(newlineCB, line, chordOff) {
-  let text = "";
-  let cline = "";
-  let i1, i2;
-  let prev = 0;
-  let count = 0;
-  let cumaddspace = 0;
-
-  if (chordOff) {
+// collect structured text and if chords are to be displayed,
+// collect the chords in chord map for possible translation later
+// - return nothing
+function collectStructText(recCB, line, textOnly, chordMap = null) {
+  if (textOnly) {
     // stripped the chords and return pure text line
-    newlineCB(typeLine("text", line.replace(chordRegExp, "")));
+    recCB(typeLineObj("text", line.replace(chordRegExp, "")));
     return;
   }
 
-  do {
-    i1 = line.indexOf("[", prev);
-    if (i1 >= 0) {
-      i2 = line.indexOf("]", i1);
-      if (i2 > 0) {
-        // -- do the text line first --
-        // get the text in front of the chord being processed
-        text = text.concat(line.substring(prev, i1));
+  recCB(typeLineObj("text", line));
 
-        // do chord line: pad with space to begin of chard
-        cline = cline.padEnd(i1 - count + cumaddspace);
+  // record chord if not in map yet
+  let chords = line.match(chordRegExp);
+  if (chords != null && chordMap) {
+    chords.forEach(chord =>
+      !chordMap.has(chord) ? chordMap.set(chord, "") : true
+    );
+  }
+}
 
-        // if no space between multiple chords, need to add one space in-between
-        if (cline.length > 0 && cline.charAt(cline.length - 1) !== " ") {
-          cline = cline.padEnd(cline.length + 1);
-          cumaddspace += 1;
-        }
+//  expand text line with chords to two lines: chord line + text line
+function mapLinesToDisplayFormat(tlines) {
+  let rlines = [];
 
-        if (
-          cline.length !== text.length &&
-          line.charAt(i2 + 1) !== " " &&
-          line.charAt(i2 + 1) !== "["
-        ) {
-          // text line shorter for next chord position
-          if (text.length < cline.length) {
-            text = text.padEnd(cline.length);
-          } else {
-            // chord line is shorter due to recently added text
-            // console.log(text);
-            cline = cline.padEnd(text.length);
-          }
-        }
-        cline = cline.concat(line.substring(i1 + 1, i2)); // get the chord
+  function expandToFormat(tl) {
+    let lbd;
+    let lc = "";
+    let lt = "";
 
-        // account for the length (spaces taken up) by all the chords seen so far
-        count += i2 - i1 + 1;
+    if (tl.type === "struct") {
+      rlines.push(tl); // copy the line over
+      return;
+    }
+    if (tl.type === "text") {
+      // expand to possibly a 'chord' line and a 'text' line
+      if (tl.line === "") {
+        rlines.push(tl); // copy empty text line
+        return;
       }
-    }
-    if (i1 < 0 || i2 < 0) {
-      // no more chords or none
-      text = text.concat(line.substring(prev));
-    }
-    // set the start for next scan to the end of the chord examined
-    prev = i1 >= 0 ? (i2 > 0 ? i2 + 1 : -1) : -1;
-  } while (prev > 0);
 
-  if (cline.length) newlineCB(typeLine("chord", cline));
+      lbd = tl.line.split("["); // split at begin of each chord segment
+      if (lbd.length === 1 && lbd[0].indexOf("]") < 0) {
+        // only text, no chord
+        rlines.push(tl);
+        return;
+      }
 
-  newlineCB(typeLine("text", text));
+      for (let item of lbd.values()) {
+        // for each chord+text fragment
+        const parts = item.split("]"); // split between chord and lyric
+
+        if (parts.length === 1 && parts[0].indexOf("]") < 0) {
+          // no chord for this (first) fragment
+          lt = lt.concat(parts[0]);
+        } else {
+          // chord line: a chord must be present
+          lc = lc.concat(parts[0], " "); // at least one space for next chord
+
+          // text line
+          lt = lt.concat(parts[1]);
+        }
+
+        if (lt.length > lc.length) lc = lc.padEnd(lt.length);
+        else if (lc.length > lt.length) lt = lt.padEnd(lc.length);
+      }
+      rlines.push({ type: "chord", line: lc });
+      rlines.push({ type: "text", line: lt });
+      return;
+    }
+  }
+
+  tlines.forEach(tl => expandToFormat(tl));
+  return rlines;
 }
 
 // go thru content line by line and transform each line into text for display
 // - return React content for rendering
 export default function formatBody(props) {
   const state = props.state;
-  let chordOff = state.chordOff;
+  const textOnly = state.chordOff || state.noChords;
   let lines = [];
   let index = 0;
 
   let chorusSection = false;
-  // let codaSection = false;
+  let codaSection = false;
   let manualChorus = false;
   let typeLines = [];
+  let chorusBlocks = [];
+  let codaBlock = [];
+  const primChordMap = new Map();
+  const chorusChordMap = new Map();
+  const codaChordMap = new Map();
 
-  const recLineCB = typedLine => typeLines.push(typedLine);
+  const recLineCB = typeLineObj => typeLines.push(typeLineObj);
 
   console.log("--- formatBody");
 
@@ -418,20 +657,18 @@ export default function formatBody(props) {
   // before insertion into DB already; skip any empty lines
   while (lines[0] === "") lines.splice(0, 1);
 
-  lines = transposeSong(state, lines);
-
   // transform the song (maybe transposed) to structured lines
   // that can be formatted for display
   for (index = 0; index < lines.length; index++) {
     if (lines[index] === "") {
-      editOrigText(recLineCB, "", chordOff);
+      collectStructText(recLineCB, "", textOnly);
       if (manualChorus) {
         // chorus section was spelled out, line space delineated
         // we can turn off flag to signify end of chorus section
         chorusSection = false;
         manualChorus = false;
+        chorusBlocks.push(typeLines.length - 1);
       }
-
       continue;
     }
 
@@ -446,12 +683,12 @@ export default function formatBody(props) {
       lines[index].charAt(lines[index].length - 1) === ":"
     ) {
       // if there was no empty line before the marker, add one
-      if (lines[index - 1] !== "") editOrigText(recLineCB, "", chordOff);
+      if (lines[index - 1] !== "") collectStructText(recLineCB, "", textOnly);
 
-      editOrigText(
+      collectStructText(
         recLineCB,
         "Verse ".concat(lines[index].substring(6)),
-        chordOff
+        textOnly
       );
       typeLines[typeLines.length - 1].type = "struct";
       continue;
@@ -470,10 +707,13 @@ export default function formatBody(props) {
       }
 
       // if there was no empty line before chorus marker, add one
-      if (lines[index - 1] !== "") editOrigText(recLineCB, "", chordOff);
+      if (lines[index - 1] !== "") collectStructText(recLineCB, "", textOnly);
 
-      editOrigText(recLineCB, "     Chorus:", chordOff);
+      collectStructText(recLineCB, "     Chorus:", textOnly);
       typeLines[typeLines.length - 1].type = "struct";
+
+      // record begin index of chorus section
+      chorusBlocks.push(typeLines.length);
       continue;
     }
 
@@ -481,23 +721,59 @@ export default function formatBody(props) {
     if (lines[index].substring(0, 5).toLowerCase() === "{eoc}") {
       chorusSection = false;
       // if the line after the end of chorus marker isn't a space, add one
-      if (lines[index + 1] !== "") editOrigText(recLineCB, "", chordOff);
+      if (lines[index + 1] !== "") collectStructText(recLineCB, "", textOnly);
+
+      // record end index of chorus
+      chorusBlocks.push(typeLines.length - 1);
       continue;
     }
 
     if (lines[index].substring(0, 4).toLowerCase() === "coda") {
-      // codaSection = true;
-      editOrigText(recLineCB, "Coda:", chordOff);
+      codaSection = true;
+      collectStructText(recLineCB, "Coda:", textOnly);
       typeLines[typeLines.length - 1].type = "struct";
+
+      // record begin index of coda
+      codaBlock.push(typeLines.length);
       continue;
     }
 
     // normal lyric lines
     let newline = (chorusSection ? "     " : "") + lines[index];
 
-    editOrigText(recLineCB, newline, chordOff);
+    collectStructText(
+      recLineCB,
+      newline,
+      textOnly,
+      chorusSection ? chorusChordMap : codaSection ? codaChordMap : primChordMap
+    );
+  }
+
+  // ensure blocks closed balanced
+  if (chorusSection) {
+    chorusSection = false;
+    chorusBlocks.push(typeLines.length - 1);
+  }
+  if (codaSection) {
+    codaSection = false;
+    codaBlock.push(typeLines.length - 1);
   }
   // console.log(typeLines);
+
+  // this is redundant but just to remind of the logic
+  if (!(state.chordOff || state.noChords || state.fromKey === ""))
+    typeLines = transposeStructText(
+      state.songKey,
+      state.songToKey,
+      typeLines,
+      primChordMap,
+      chorusChordMap,
+      codaChordMap,
+      chorusBlocks,
+      codaBlock
+    );
+
+  typeLines = mapLinesToDisplayFormat(typeLines);
 
   return typeLines.map((typeline, idx) => fmtLine(typeline, idx));
 }
