@@ -184,6 +184,21 @@ function SongStoreInit(props) {
     );
   }
 
+  if (!data.songs.length) {
+    props.errorCallback(true);
+    return (
+      <div>
+        <Message size="huge">
+          <Message.Header>
+            Database is empty.
+            <br />
+            There is no song in the database.
+          </Message.Header>
+        </Message>
+      </div>
+    );
+  }
+
   console.log("Total song entries fetched: " + data.songs.length);
 
   // build song tables grouped by language
