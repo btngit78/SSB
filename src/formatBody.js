@@ -414,8 +414,10 @@ function transposeStructText(
   typeLines,
   primChordMap,
   chorusChordMap,
+  bridgeChordMap,
   codaChordMap,
   chorusBlocks,
+  bridgeBlocks,
   codaBlock
 ) {
   let side = 0;
@@ -477,6 +479,9 @@ function transposeStructText(
           chorusBlocks.length &&
             withinBlock(index, chorusBlocks[0], chorusBlocks[1])
             ? chorusChordMap
+            : bridgeBlocks.length &&
+              withinBlock(index, bridgeBlocks[0], bridgeBlocks[1])
+            ? bridgeChordMap
             : codaBlock.length && withinBlock(index, codaBlock[0], codaBlock[1])
             ? codaChordMap
             : primChordMap
@@ -486,8 +491,11 @@ function transposeStructText(
         // done with this block, remove pair
         chorusBlocks.shift();
         chorusBlocks.shift();
-      }
-      if (codaBlock.length && index === codaBlock[1]) {
+      } else if (bridgeBlocks.length && index === bridgeBlocks[1]) {
+        // done with this block, remove pair
+        bridgeBlocks.shift();
+        bridgeBlocks.shift();
+      } else if (codaBlock.length && index === codaBlock[1]) {
         // done with this block, remove pair
         codaBlock.shift();
         codaBlock.shift();
@@ -524,6 +532,18 @@ function transposeStructText(
       chorusBlocks[0],
       chorusBlocks[1],
       chorusChordMap,
+      fromKey,
+      side,
+      accidentals,
+      toKey
+    );
+  }
+
+  if (bridgeBlocks.length >= 2) {
+    analyzeAndTransposeMap(
+      bridgeBlocks[0],
+      bridgeBlocks[1],
+      bridgeChordMap,
       fromKey,
       side,
       accidentals,
@@ -633,13 +653,16 @@ export default function formatBody(props) {
   let index = 0;
 
   let chorusSection = false;
+  let bridgeSection = false;
   let codaSection = false;
   let manualChorus = false;
   let typeLines = [];
   let chorusBlocks = [];
+  let bridgeBlocks = [];
   let codaBlock = [];
   const primChordMap = new Map();
   const chorusChordMap = new Map();
+  const bridgeChordMap = new Map();
   const codaChordMap = new Map();
 
   const recLineCB = typeLineObj => typeLines.push(typeLineObj);
@@ -669,6 +692,11 @@ export default function formatBody(props) {
         manualChorus = false;
         chorusBlocks.push(typeLines.length - 1);
       }
+      if (bridgeSection) {
+        // bridge section was spelled out, empty line indicates end of section
+        bridgeSection = false;
+        bridgeBlocks.push(typeLines.length - 1);
+      }
       continue;
     }
 
@@ -676,7 +704,7 @@ export default function formatBody(props) {
     if (lines[index].charAt(0) === "#") continue;
 
     // detect explicit verse marker
-    const match = lines[index].match(/verse[\s]*/i);
+    const match = lines[index].match(/verse[\s]*.*:$/i);
     if (
       match != null &&
       match.index === 0 &&
@@ -728,6 +756,22 @@ export default function formatBody(props) {
       continue;
     }
 
+    // detect bridge section
+    if (lines[index].substring(0, 7).toLowerCase() === "bridge:") {
+      // begin of chorus section
+      bridgeSection = true;
+
+      // if there was no empty line before bridge marker, add one
+      if (lines[index - 1] !== "") collectStructText(recLineCB, "", textOnly);
+
+      collectStructText(recLineCB, "     Bridge:", textOnly);
+      typeLines[typeLines.length - 1].type = "struct";
+
+      // record begin index of chorus section
+      bridgeBlocks.push(typeLines.length);
+      continue;
+    }
+
     if (lines[index].substring(0, 4).toLowerCase() === "coda") {
       codaSection = true;
       collectStructText(recLineCB, "Coda:", textOnly);
@@ -739,20 +783,32 @@ export default function formatBody(props) {
     }
 
     // normal lyric lines
-    let newline = (chorusSection ? "     " : "") + lines[index];
+    let newline =
+      (chorusSection || bridgeSection ? "     " : "") + lines[index];
 
     collectStructText(
       recLineCB,
       newline,
       textOnly,
-      chorusSection ? chorusChordMap : codaSection ? codaChordMap : primChordMap
+      chorusSection
+        ? chorusChordMap
+        : bridgeSection
+        ? bridgeChordMap
+        : codaSection
+        ? codaChordMap
+        : primChordMap
     );
   }
 
+  // no more lines
   // ensure blocks closed balanced
   if (chorusSection) {
     chorusSection = false;
     chorusBlocks.push(typeLines.length - 1);
+  }
+  if (bridgeSection) {
+    bridgeSection = false;
+    bridgeBlocks.push(typeLines.length - 1);
   }
   if (codaSection) {
     codaSection = false;
@@ -768,8 +824,10 @@ export default function formatBody(props) {
       typeLines,
       primChordMap,
       chorusChordMap,
+      bridgeChordMap,
       codaChordMap,
       chorusBlocks,
+      bridgeBlocks,
       codaBlock
     );
 
