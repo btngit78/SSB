@@ -38,10 +38,10 @@ const initialState = {
 };
 
 const client = new ApolloClient({
-  uri:
-    process.env.NODE_ENV === "production"
-      ? "https://enigmatic-refuge-55577.herokuapp.com/graphql"
-      : "http://localhost:1337/graphql"
+  uri: "https://enigmatic-refuge-55577.herokuapp.com/graphql"
+  // process.env.NODE_ENV === "production"
+  //   ? "https://enigmatic-refuge-55577.herokuapp.com/graphql"
+  //   : "http://localhost:1337/graphql"
 });
 
 // no pagination or caching scheme to hangle larger DB (yet!)
@@ -160,6 +160,8 @@ function SongStoreInit(props) {
   const songSets = state.store.songSets;
 
   console.log("--- SongStoreInit");
+  console.log("NODE_ENV: " + process.env.NODE_ENV);
+  console.log("client uri: " + client.uri);
 
   // TODO: queyry to fetch all 'saved' values from local-storage
   // and set initial default set/song/etc. to saved values.
