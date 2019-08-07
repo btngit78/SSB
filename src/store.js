@@ -38,7 +38,10 @@ const initialState = {
 };
 
 const client = new ApolloClient({
-  uri: "http://localhost:1337/graphql"
+  uri:
+    process.env.NODE_ENV === "production"
+      ? "https://enigmatic-refuge-55577.herokuapp.com/graphql"
+      : "http://localhost:1337/graphql"
 });
 
 // no pagination or caching scheme to hangle larger DB (yet!)
