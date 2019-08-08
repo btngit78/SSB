@@ -37,11 +37,10 @@ const initialState = {
   store: songStore
 };
 
+const CMSHOST = process.env.CMSHOST || "";
+
 const client = new ApolloClient({
-  uri: "https://enigmatic-refuge-55577.herokuapp.com/graphql"
-  // process.env.NODE_ENV === "production"
-  //   ? "https://enigmatic-refuge-55577.herokuapp.com/graphql"
-  //   : "http://localhost:1337/graphql"
+  uri: CMSHOST ? `https://${CMSHOST}/graphql` : "http://localhost:1337/graphql"
 });
 
 // no pagination or caching scheme to hangle larger DB (yet!)
@@ -160,8 +159,6 @@ function SongStoreInit(props) {
   const songSets = state.store.songSets;
 
   console.log("--- SongStoreInit");
-  console.log("NODE_ENV: " + process.env.NODE_ENV);
-  console.log("client uri: " + client.uri);
 
   // TODO: queyry to fetch all 'saved' values from local-storage
   // and set initial default set/song/etc. to saved values.
@@ -235,31 +232,32 @@ function SongStoreInit(props) {
 
 /* ========================================================================= */
 // for testing state tracking (copying/changes)
-let testCount = 0;
-let stateRef;
-let storeRef;
+// let testCount = 0;
+// let stateRef;
+// let storeRef;
 
-function Test(props) {
-  const [state] = useContext(SongContext);
+// function Test(props) {
+//   const [state] = useContext(SongContext);
 
-  if (testCount === 0) {
-    stateRef = state;
-    storeRef = state.store;
-  } else {
-    console.log(
-      "Same state: ",
-      stateRef === state,
-      "   ",
-      "Same store: ",
-      storeRef === state.store
-    );
-    if (stateRef !== state) stateRef = state;
-    if (storeRef !== state.store) storeRef = state.store;
-  }
-  console.log(`Test rendering ${testCount++} :`, state);
+//   if (testCount === 0) {
+//     stateRef = state;
+//     storeRef = state.store;
+//   } else {
+//     console.log(
+//       "Same state: ",
+//       stateRef === state,
+//       "   ",
+//       "Same store: ",
+//       storeRef === state.store
+//     );
+//     if (stateRef !== state) stateRef = state;
+//     if (storeRef !== state.store) storeRef = state.store;
+//   }
+//   console.log(`Test rendering ${testCount++} :`, state);
 
-  return null;
-}
+//   return null;
+// }
+
 /* ========================================================================= */
 
 // Component to provide song context/store for the React UI
@@ -274,12 +272,22 @@ export function SongProvider(props) {
 
   const initDefaultSetSong = () => {
     if (!initDefault) {
-      dispatch({ type: "selectSet", payload: Array.from(songSets.keys())[0] });
+      // set the default set to the first item in the alphabetical select list
+      console.log(songSets.keys());
+      console.log(Array.from(songSets.keys()).sort());
+      console.log([...Array.from(songSets.keys()).sort()][0]);
+
+      dispatch({
+        type: "selectSet",
+        payload: [...Array.from(songSets.keys()).sort()][0]
+      });
       setInitDefault(true);
     }
     return initDefault ? true : false;
   };
 
+  // The <Test /> component can be put at the end of the SongContext.Provider component
+  // to track state change if need be.
   return (
     <SongContext.Provider value={[state, dispatch]}>
       <ApolloProvider client={client}>
@@ -291,7 +299,6 @@ export function SongProvider(props) {
         )}
       </ApolloProvider>
       {!loadingError && storeReady && initDefaultSetSong() && props.children}
-      <Test />
     </SongContext.Provider>
   );
 }
