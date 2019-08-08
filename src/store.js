@@ -40,14 +40,7 @@ const initialState = {
 let CMSHOST = process.env.CMSHOST || "";
 // the above should've work in heroku env (but doesn't - ?)
 // temporary hard coded value for cms host in 'production' for now
-CMSHOST =
-  CMSHOST ||
-  (process.env.NODE_ENV === "production"
-    ? "enigmatic-refuge-55577.herokuapp.com"
-    : "");
-
-console.log("CMSHOST: " + CMSHOST);
-console.log("env: " + process.env.NODE_ENV);
+CMSHOST = "enigmatic-refuge-55577.herokuapp.com";
 
 const client = new ApolloClient({
   uri: CMSHOST ? `https://${CMSHOST}/graphql` : "http://localhost:1337/graphql"
