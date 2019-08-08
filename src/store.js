@@ -46,6 +46,9 @@ CMSHOST =
     ? "enigmatic-refuge-55577.herokuapp.com"
     : "");
 
+console.log("CMSHOST: " + CMSHOST);
+console.log("env: " + process.env.NODE_ENV);
+
 const client = new ApolloClient({
   uri: CMSHOST ? `https://${CMSHOST}/graphql` : "http://localhost:1337/graphql"
 });
