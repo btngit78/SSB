@@ -37,7 +37,14 @@ const initialState = {
   store: songStore
 };
 
-const CMSHOST = process.env.CMSHOST || "";
+let CMSHOST = process.env.CMSHOST || "";
+// the above should've work in heroku env (but doesn't - ?)
+// temporary hard coded value for cms host in 'production' for now
+CMSHOST =
+  CMSHOST ||
+  (process.env.NODE_ENV === "production"
+    ? "enigmatic-refuge-55577.herokuapp.com"
+    : "");
 
 const client = new ApolloClient({
   uri: CMSHOST ? `https://${CMSHOST}/graphql` : "http://localhost:1337/graphql"
@@ -273,10 +280,6 @@ export function SongProvider(props) {
   const initDefaultSetSong = () => {
     if (!initDefault) {
       // set the default set to the first item in the alphabetical select list
-      console.log(songSets.keys());
-      console.log(Array.from(songSets.keys()).sort());
-      console.log([...Array.from(songSets.keys()).sort()][0]);
-
       dispatch({
         type: "selectSet",
         payload: [...Array.from(songSets.keys()).sort()][0]

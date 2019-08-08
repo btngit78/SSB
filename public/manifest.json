@@ -1,6 +1,6 @@
 {
-  "short_name": "Super Songbook",
-  "name": "Super Songbook - A React app example",
+  "short_name": "My Songbook",
+  "name": "My Songbook",
   "icons": [
     {
       "src": "favicon.ico",
