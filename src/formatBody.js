@@ -320,7 +320,7 @@ function computeRealKey(fromKey, toKey) {
 }
 
 // transpose all chords in chordMap to new key; fromKey is [A-G][#b][m]
-// - return null
+// - return the actual key transposed to
 function transposeToNewKey(fromKey, toKey, chordMap) {
   let keynum = 0;
   let targetKeynum = 0;
@@ -353,7 +353,9 @@ function transposeToNewKey(fromKey, toKey, chordMap) {
   chordMap.forEach((value, key) =>
     chordMap.set(key, transposeOneChord(key, diff, side, accidentals))
   );
+
   // console.log(...chordMap);
+  return actualNewKey;
 }
 
 // analyze if the key found is within scale or normal pattern
@@ -455,7 +457,10 @@ function transposeStructText(
         // compute different base and delta for transpose
         altKeynum =
           (getKeynum(toKey) + (getKeynum(fkey) + 12 - getKeynum(fromKey))) % 12;
-        altKey = computeRealKey(fkey, getKeytxt(altKeynum));
+        altKey = computeRealKey(
+          fkey,
+          getKeytxt(altKeynum) + (fkey.endsWith("m") ? "m" : "")
+        );
         altKey = biasSelectKey(altKey, toKey);
 
         transposeToNewKey(fkey, altKey, chordMap);
@@ -505,17 +510,12 @@ function transposeStructText(
 
   /*---- main of transpose ----*/
 
-  let temp;
-  if (toKey.endsWith("m")) temp = toKey;
-  else temp = toKey + (fromKey.endsWith("m") ? "m" : "");
-
-  if (temp === fromKey) {
-    // no key change, no transpose
-    return typeLines;
-  }
+  toKey = toKey + (fromKey.endsWith("m") && !toKey.endsWith("m") ? "m" : "");
+  if (toKey === fromKey) return typeLines;
 
   // at least, primary chord map must be transposed
-  transposeToNewKey(fromKey, toKey, primChordMap);
+  // get the real key to use for other sections too
+  toKey = transposeToNewKey(fromKey, toKey, primChordMap);
 
   // analyze chorus & coda sections to see if key has changed
   // and transpose accordingly
