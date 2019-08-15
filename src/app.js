@@ -252,7 +252,6 @@ function App() {
             deburr
             selection
             onChange={(ev, obj) => {
-              console.log(obj);
               dispatch({ type: "selectSong", payload: obj.value });
             }}
             value={state.songSetIndex}
