@@ -50,9 +50,9 @@ const client = new ApolloClient({
 // this should be plenty for majority of cases
 const songsInMemLimit = 2000;
 
-const GET_SONGS_SORT = gql`
-  query GetSongSort($limit: Int!) {
-    songs(sort: "title", limit: $limit) {
+const GET_SONGS_ALL = gql`
+  query GetSongAll($limit: Int!) {
+    songs(limit: $limit) {
       id
       title
       authors
@@ -155,7 +155,7 @@ function installSong(songSets, song) {
 // -- Return a "loading" component while loading, "error" if running into one,
 // or "null" componext (for display) but not before initialize the store.
 function SongStoreInit(props) {
-  const { data, loading, error } = useQuery(GET_SONGS_SORT, {
+  const { data, loading, error } = useQuery(GET_SONGS_ALL, {
     variables: { limit: songsInMemLimit }
   });
   const [state] = useContext(SongContext);
@@ -208,6 +208,11 @@ function SongStoreInit(props) {
 
   // build song tables grouped by language
   data.songs.map(song => installSong(songSets, song));
+  // sort each list in-mem due to apparent bug in Strapi which may have to do with
+  // mixed character set. By using localeCompare we get accurate sort results
+  songSets.forEach((value, key, map) => {
+    songSets.set(key, value.sort((a, b) => a.title.localeCompare(b.title)));
+  });
 
   // build set select list (text/value) for display
   const tmp = [...songSets.keys()].sort();
