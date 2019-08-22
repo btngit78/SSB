@@ -32,6 +32,50 @@ const isSharpOrFlat = c => c === "#" || c === "b";
 // const majorScaleOffSeq = [0, 2, 2, 1, 2, 2, 2, 1];
 // const minorScaleOffSeq = [0, 2, 1, 2, 2, 2, 1, 1];
 
+// when transposing, notes on same side are preferred except for C major
+const forSharps = [
+  "A",
+  "A#",
+  "B",
+  "C",
+  "C#",
+  "D",
+  "D#",
+  "E",
+  "F",
+  "F#",
+  "G",
+  "G#"
+];
+const forFlats = [
+  "A",
+  "Bb",
+  "B",
+  "C",
+  "Db",
+  "D",
+  "Eb",
+  "E",
+  "F",
+  "Gb",
+  "G",
+  "Ab"
+];
+const forNeutral = [
+  "A",
+  "Bb",
+  "B",
+  "C",
+  "C#",
+  "D",
+  "Eb",
+  "E",
+  "F",
+  "F#",
+  "G",
+  "Ab"
+];
+
 const typeLineObj = (type = "text", line = "") => ({ type, line });
 
 // given a note, get the key number per keyTab
@@ -56,7 +100,7 @@ const getKeytxt = (keyNum, sharp = true) => {
   return k > keyTab[i][1]
     ? sharp
       ? keyTab[i][0] + "#"
-      : keyTab[i + 1][0] + "b"
+      : keyTab[(i + 1) % keyTab.length][0] + "b"
     : keyTab[i][0];
 };
 
@@ -94,7 +138,7 @@ const biasSelectKey = (pkey, mainKey) => {
         if (idx >= 0) return unisons[idx][1];
       }
     }
-    // natural or already flatted
+    // not in list or already flatted
     return pkey;
   } else if (
     sharps.majorKeys.indexOf(mainKey) >= 0 ||
@@ -107,7 +151,7 @@ const biasSelectKey = (pkey, mainKey) => {
         if (idx >= 0) return unisons[idx][0];
       }
     }
-    // natural or already flatted
+    // not in list or already sharped
     return pkey;
   } else {
     // mainKey = 'C'
@@ -186,55 +230,26 @@ function findSideAndKeyindex(key, respCB) {
   return respCB(s, idx);
 }
 
-//
-// *** TBD : should rewrite this to make it easier to read and more efficient ***
-//
-// from interval number (number 0-11 offset from A), get the transposed note
-// - return the transposed note
-function transposeToNewNote(inum, side, accidentals) {
-  let idx = 0;
+function transposeToNewNote(inum, side, accidentals, prefs) {
   let note = "";
 
-  // what note is the target num ? get the note that is equal or one seminote above
-  idx = inum < 11 ? keyTab.findIndex(item => item[1] >= inum) : 7;
-
-  if (inum < 11 && inum === keyTab[idx][1]) note = keyTab[idx][0];
-  else {
-    switch (side) {
-      case 1:
-        // one or more sharps, scan forward to find the 'greater' note or equal
-        // in between intervals
-        if (accidentals.indexOf(keyTab[idx - 1][0]) > -1)
-          note = keyTab[idx - 1][0] + "#";
-        else note = idx === 7 ? "G#" : keyTab[idx][0] + "b";
-        break;
-      case -1:
-        // one or more flats, scan forward to find the 'greater' note or equal
-        // in between intervals
-        if (accidentals.indexOf(keyTab[idx % 7][0]) > -1)
-          note = keyTab[idx % 7][0] + "b";
-        else note = idx === 7 ? "Ab" : keyTab[idx - 1][0] + "#";
-        break;
-      case 0:
-      default:
-        // in C key, prefer to name in-between chords in flatted
-        // except for root+1 and 4th+1
-        note =
-          idx === 7
-            ? "Ab"
-            : inum === 4 || inum === 9
-            ? keyTab[idx - 1][0] + "#"
-            : inum === keyTab[idx][1]
-            ? keyTab[idx][0]
-            : keyTab[idx][0] + "b";
-    }
+  switch (side) {
+    case 1:
+      note = prefs[inum];
+      break;
+    case -1:
+      note = prefs[inum];
+      break;
+    case 0:
+    default:
+      note = prefs[inum];
   }
   return note;
 }
 
 // transpose one chord in quoted notation to new key
 // - return the new chord
-function transposeOneChord(fromChord, delta, side, accidentals) {
+function transposeOneChord(fromChord, delta, side, accidentals, prefs) {
   let frNum = getKeynum(fromChord.substring(1));
   let cindex = isSharpOrFlat(fromChord.charAt(2)) ? 3 : 2; // anything after the main note
   let toNum = (frNum + delta) % 12;
@@ -246,7 +261,7 @@ function transposeOneChord(fromChord, delta, side, accidentals) {
   // console.log(fromChord, delta, side, accidentals);
   if (!delta) return fromChord; // no transposition
 
-  newchord = "[" + transposeToNewNote(toNum, side, accidentals);
+  newchord = "[" + transposeToNewNote(toNum, side, accidentals, prefs);
 
   let bidx = fromChord.indexOf("/");
   if (bidx > 0) {
@@ -260,7 +275,15 @@ function transposeOneChord(fromChord, delta, side, accidentals) {
       bAccCount = count;
     });
     bAccidentals = getAccidentals(bSide, bAccCount);
-    newchord = newchord + transposeToNewNote(toNum, bSide, bAccidentals) + "]";
+    newchord =
+      newchord +
+      transposeToNewNote(
+        toNum,
+        bSide,
+        bAccidentals,
+        bSide === 0 ? forNeutral : bSide > 0 ? forSharps : forFlats
+      ) +
+      "]";
   }
   // no bass part
   else newchord = newchord + fromChord.substring(cindex);
@@ -272,7 +295,8 @@ function transposeOneChord(fromChord, delta, side, accidentals) {
 // only certain major scales and minor scales are possible given their accidentals
 // - return the real key
 function computeRealKey(fromKey, toKey) {
-  let realKey = "";
+  let realKey = toKey,
+    temp = "";
 
   if (
     (fromKey.endsWith("m") && !toKey.endsWith("m")) ||
@@ -283,11 +307,9 @@ function computeRealKey(fromKey, toKey) {
     );
   }
 
-  realKey = toKey;
-
   if (!realKey.endsWith("m")) {
     // major keys: change sharp to flat or vice versa if necessary
-    let temp = realKey;
+    temp = realKey;
     if (temp.charAt(1) === "#") {
       realKey =
         temp === "G#"
@@ -302,7 +324,7 @@ function computeRealKey(fromKey, toKey) {
     }
   } else {
     // minor keys: change sharp to flat or vice versa if necessary
-    let temp = realKey;
+    temp = realKey;
     if (temp.charAt(1) === "#") {
       realKey = temp === "E#m" ? "Fm" : temp === "B#m" ? "Cm" : temp;
     } else if (temp.charAt(1) === "b") {
@@ -316,6 +338,7 @@ function computeRealKey(fromKey, toKey) {
           : temp;
     }
   }
+
   return realKey;
 }
 
@@ -350,61 +373,86 @@ function transposeToNewKey(fromKey, toKey, chordMap) {
   accidentals = getAccidentals(side, accCount);
 
   // compute new chords for the map
-  chordMap.forEach((value, key) =>
-    chordMap.set(key, transposeOneChord(key, diff, side, accidentals))
+  chordMap.forEach((value, oldChord) =>
+    chordMap.set(
+      oldChord,
+      transposeOneChord(
+        oldChord,
+        diff,
+        side,
+        accidentals,
+        side === 0 ? forNeutral : side > 0 ? forSharps : forFlats
+      )
+    )
   );
 
   // console.log(...chordMap);
   return actualNewKey;
 }
 
-// analyze if the key found is within scale or normal pattern
+// analyze if the chords found is within scale or normal pattern
 // of normal scale; diminished chord of 'between' notes are considered
 // transitional and thus likely to remain 'in key'
 // - return new key if chord is considered to be of a different key
 // or null if within same key
-function isOfDifferentKey(chord, fromKey, side, accidentals) {
+function isOfDifferentKey(xc, fromKey, side, accidentals) {
   let scaleMain = [];
-  let xNote = chord.match(rootNoteExp);
   let fNote = fromKey.match(rootNoteExp);
+  let xNote;
+  let outScaleCount = 0;
 
-  if (xNote) xNote = xNote[0];
-  if (fNote) fNote = fNote[0];
+  // this is an inscale note or wiil be assumed to be root of a new key
+  xNote = xc[0];
 
-  if (xNote === fNote) {
+  if (xNote.match(rootNoteExp)[0] === fNote) {
     // same root, then the only difference is if it goes from
     // minor to major (or vice versa)
-    if (chord.length !== fromKey.length) {
-      if (chord.match(dimChordExp))
-        // a diminished chord!  assume no key change (TBD?)
+    if (xNote.length !== fromKey.length) {
+      if (xNote.match(dimChordExp))
+        // a diminished chord! assume no key change (TBD ?)
         return null;
-      return chord.match(keyExp)[0];
+      return xNote.match(keyExp)[0];
     }
-    return null;
-  } else {
-    // not same root; see if not within scale of fromKey;
-    // build all notes in scale and compare
-    scaleMain = [...keyMap.keys()];
-    if (accidentals.length)
-      scaleMain = scaleMain.map(note =>
-        accidentals.indexOf(note) >= 0 ? note + (side ? "#" : "b") : note
-      );
-
-    // if note is not in scale
-    if (scaleMain.indexOf(xNote) < 0) {
-      // -- [??? what if root note is same tone]
-      if (chord.match(dimChordExp))
-        // diminished chord; assume it's a transition chord only
-        // no change in key
-        return null;
-      else {
-        return chord.match(keyExp)[0];
-      }
-    }
-
-    // note in scale; very unlikely to be a new key
     return null;
   }
+
+  // not same root; see if not within scale of fromKey; build all notes in scale and compare
+  // the set is considered to be of different key only if at least 2 chords (not diminished chords)
+  // with root note not in the scale of the main key
+
+  scaleMain = [...keyMap.keys()];
+  if (accidentals.length)
+    scaleMain = scaleMain.map(note =>
+      accidentals.indexOf(note) >= 0 ? note + (side > 0 ? "#" : "b") : note
+    );
+  // console.log("scaleMain: ", scaleMain);
+  // console.log("4 chords to examine: ", xc);
+
+  for (var i = 0; i < 3; i++) {
+    if (xc[i] === undefined) break;
+
+    // if note is not in scale
+    if (scaleMain.indexOf(xc[i].match(rootNoteExp)[0]) >= 0) {
+      // note is inscale of main key
+      if (outScaleCount === 0 && i === 2)
+        // 3rd one examined already but no out-of-scale chord, skip the last
+        break;
+    } else {
+      if (xc[i].match(dimChordExp))
+        // diminished chord; assume it's a transition chord only; no change
+        continue;
+
+      outScaleCount++;
+      if (outScaleCount > 1)
+        // 2 out-of-scale chords already, it's a different key
+        break;
+    }
+  }
+
+  if (outScaleCount > 1) {
+    return xNote.match(keyExp)[0];
+  }
+  return null;
 }
 
 // if song is to be transposed, go thru all chord maps and transpose each chord,
@@ -428,6 +476,7 @@ function transposeStructText(
 
   // analyze given block (chorus or coda) and determine proper key
   // then transpose the chordmap
+  // - return null
   function analyzeAndTransposeMap(
     idx1,
     idx2,
@@ -437,29 +486,34 @@ function transposeStructText(
     accidentals,
     toKey
   ) {
-    let fchord;
+    let xc = new Array(4);
     let fkey;
     let altKeynum;
     let altKey;
-    let i;
 
-    for (i = idx1; i <= idx2; i++) {
-      // grab first chord
-      fchord = typeLines[i].line.match(chordRegExp1);
-      if (fchord) break;
-    }
-    if (fchord) {
-      fchord = fchord[0].substring(1, fchord[0].length - 1); // without the []
+    const get4chords = cmap => {
+      [xc[0], xc[1], xc[2], xc[3]] = [...cmap.keys()];
+    };
 
-      fkey = isOfDifferentKey(fchord, fromKey, side, accidentals);
+    // heuristic algo: grab first 4 chords; assume they will either be in scale (thus same key)
+    // or not in scale (thus a new key)
+    if (chordMap.size > 0) {
+      get4chords(chordMap);
+
+      xc[0] = xc[0].substring(1, xc[0].length - 1); // without the []
+      if (xc[1]) xc[1] = xc[1].substring(1, xc[1].length - 1);
+      if (xc[2]) xc[2] = xc[2].substring(1, xc[2].length - 1);
+      if (xc[3]) xc[3] = xc[3].substring(1, xc[3].length - 1);
+
+      fkey = isOfDifferentKey(xc, fromKey, side, accidentals);
 
       if (fkey) {
-        // compute different base and delta for transpose
+        // compute different key from main chordMap (but with same delta)
         altKeynum =
           (getKeynum(toKey) + (getKeynum(fkey) + 12 - getKeynum(fromKey))) % 12;
         altKey = computeRealKey(
           fkey,
-          getKeytxt(altKeynum) + (fkey.endsWith("m") ? "m" : "")
+          getKeytxt(altKeynum, side >= 0) + (fkey.endsWith("m") ? "m" : "")
         );
         altKey = biasSelectKey(altKey, toKey);
 
