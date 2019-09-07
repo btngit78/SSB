@@ -622,17 +622,30 @@ function transposeStructText(
   return typeLines;
 }
 
-// collect structured text and if chords are to be displayed,
+// collect structured text and if chords are to be displayed, indent (4 spaces) if flag is on
 // collect the chords in chord map for possible translation later
 // - return nothing
-function collectStructText(recCB, line, textOnly, chordMap = null) {
+function collectStructText(
+  recCB,
+  line,
+  textOnly,
+  chordMap = null,
+  indentFlag = false
+) {
   if (textOnly) {
-    // stripped the chords and return pure text line
-    recCB(typeLineObj("text", line.replace(chordRegExp, "")));
+    let nl = line.replace(chordRegExp, "");
+    if (nl.charAt(0) === " " && line.charAt(0) === "[") {
+      // first chord was offset from first word in lyric line to account for beat difference
+      // remove leading spaces so that lyric lines will line up correctly
+      nl = nl.trimStart();
+    }
+
+    // record the line stripped of chords
+    recCB(typeLineObj("text", indentFlag ? "    " + nl : nl));
     return;
   }
 
-  recCB(typeLineObj("text", line));
+  recCB(typeLineObj("text", indentFlag ? "    " + line : line));
 
   // record chord if not in map yet
   let chords = line.match(chordRegExp);
@@ -738,7 +751,13 @@ export default function formatBody(props) {
   // that can be formatted for display
   for (index = 0; index < lines.length; index++) {
     if (lines[index] === "") {
-      collectStructText(recLineCB, "", textOnly);
+      collectStructText(
+        recLineCB,
+        "",
+        textOnly,
+        null,
+        chorusSection || bridgeSection
+      );
       if (manualChorus) {
         // chorus section was spelled out, line space delineated
         // we can turn off flag to signify end of chorus section
@@ -791,7 +810,7 @@ export default function formatBody(props) {
       // if there was no empty line before chorus marker, add one
       if (lines[index - 1] !== "") collectStructText(recLineCB, "", textOnly);
 
-      collectStructText(recLineCB, "     Chorus:", textOnly);
+      collectStructText(recLineCB, "Chorus:", textOnly, null, true);
       typeLines[typeLines.length - 1].type = "struct";
 
       // record begin index of chorus section
@@ -818,7 +837,7 @@ export default function formatBody(props) {
       // if there was no empty line before bridge marker, add one
       if (lines[index - 1] !== "") collectStructText(recLineCB, "", textOnly);
 
-      collectStructText(recLineCB, "     Bridge:", textOnly);
+      collectStructText(recLineCB, "Bridge:", textOnly, null, true);
       typeLines[typeLines.length - 1].type = "struct";
 
       // record begin index of chorus section
@@ -837,12 +856,9 @@ export default function formatBody(props) {
     }
 
     // normal lyric lines
-    let newline =
-      (chorusSection || bridgeSection ? "     " : "") + lines[index];
-
     collectStructText(
       recLineCB,
-      newline,
+      lines[index],
       textOnly,
       chorusSection
         ? chorusChordMap
@@ -850,7 +866,8 @@ export default function formatBody(props) {
         ? bridgeChordMap
         : codaSection
         ? codaChordMap
-        : primChordMap
+        : primChordMap,
+      chorusSection || bridgeSection
     );
   }
 
@@ -870,8 +887,7 @@ export default function formatBody(props) {
   }
   // console.log(typeLines);
 
-  // this is redundant but just to remind of the logic
-  if (!(state.chordOff || state.noChords || state.fromKey === ""))
+  if (!(textOnly || state.fromKey === ""))
     typeLines = transposeStructText(
       state.songKey,
       state.songToKey,
