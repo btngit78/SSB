@@ -906,24 +906,93 @@ export default function formatBody(props) {
   return typeLines.map((typeline, idx) => fmtLine(typeline, idx));
 }
 
+function applyColoringRules(seg) {
+  switch (seg[0]) {
+    case "inst":
+      return <strong key={seg[2]}>{seg[1]}</strong>;
+    case "secBracket":
+      return <mark key={seg[2]}>{seg[1]}</mark>;
+    case "normal":
+    default:
+      return <React.Fragment key={seg[2]}>{seg[1]}</React.Fragment>;
+  }
+}
+
+function encodeSegments(line) {
+  const segs = [];
+  let seg = "";
+  let i = 0;
+  let found;
+
+  if (!line || !line.length) {
+    segs.push(["normal", "\n", 0]);
+    return segs;
+  }
+
+  do {
+    switch (line.charAt(i)) {
+      case "(":
+        found = line.substring(i).match(/\)/);
+        if (found) {
+          // capture the isntruction segment
+          seg = line.substring(i, i + found.index + 1);
+          segs.push(["inst", seg, i]);
+          i = i + found.index + 1;
+        } else {
+          // unbalanced paren, assume regular text
+          seg = line.substring(i);
+          segs.push(["normal", seg, i]);
+          i = -1;
+        }
+        break;
+      case "<":
+        // capture the open bracket
+        segs.push(["secBracket", "<", i]);
+        i = i + 1;
+        break;
+      case ">":
+        // capture the close bracket
+        segs.push(["secBracket", ">", i]);
+        i = i + 1;
+        break;
+      default:
+        found = line.substring(i).match(/\(|<|>/);
+        if (found) {
+          seg = line.substring(i, i + found.index);
+          segs.push(["normal", seg, i]);
+          i = i + found.index;
+        } else {
+          seg = line.substring(i);
+          segs.push(["normal", seg, i]);
+          i = -1;
+        }
+    }
+  } while (i > 0 && i < line.length);
+
+  return segs;
+}
+
 // return a typed line as React content formatted for rendering
 function fmtLine(typeLine, idx) {
+  let segs = [];
+
   switch (typeLine.type) {
     case "text":
+      segs = encodeSegments(typeLine.line);
       return (
-        <pre key={"line" + idx} style={textStyling()}>
-          {typeLine.line.length ? typeLine.line : "\n"}
+        <pre key={"l" + idx} style={textStyling()}>
+          {segs ? segs.map(seg => applyColoringRules(seg)) : null}
         </pre>
       );
     case "chord":
       return (
-        <pre key={"line" + idx} style={chordStyling()}>
+        <pre key={"l" + idx} style={chordStyling()}>
           {typeLine.line.length ? typeLine.line : ""}
         </pre>
       );
     case "struct":
       return (
-        <pre key={"line" + idx} style={structStyling()}>
+        <pre key={"l" + idx} style={structStyling()}>
           {typeLine.line.length ? typeLine.line : ""}
         </pre>
       );

@@ -19,6 +19,13 @@
   /* font-size: 1.5em; */
 }
 
-.chordline {
+strong {
+  font-weight: normal;
+  background-color: white;
+  color: #b71b1b;
+}
+
+mark {
+  background-color: white;
   color: blue;
 }
