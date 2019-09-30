@@ -13,7 +13,7 @@ import {
   Checkbox,
   Modal
 } from "semantic-ui-react";
-import SongDisplay from "./song";
+import SongDisplay, { RecentlyAddedDisplay } from "./song";
 import { setStyle } from "./lib/styling";
 
 import "./app.css";
@@ -61,6 +61,7 @@ function App() {
   const width = useWindowWidth();
   const [visible, setVisible] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
+  const [updatesModalOpen, setUpdatesModalOpen] = useState(false);
 
   console.log("--- App");
   setStyle();
@@ -171,10 +172,44 @@ function App() {
     );
   };
 
+  function handleUpdates(e, obj) {
+    setUpdatesModalOpen(true);
+    handleSidebarHide();
+  }
+
+  const UpdatesModal = () => {
+    console.log("--- UpdatesModal");
+    const handleClose = () => {
+      setUpdatesModalOpen(false);
+    };
+
+    return (
+      <Modal
+        open={updatesModalOpen}
+        onClose={handleClose}
+        centered={false}
+        style={{ width: "70%" }}
+      >
+        <Modal.Header style={{ backgroundColor: "#d2f3e1" }}>
+          50 Most Recently Added Songs
+        </Modal.Header>
+        <Modal.Content style={{ textAlign: "center" }}>
+          <RecentlyAddedDisplay closeHandler={handleClose} />
+        </Modal.Content>
+        <Modal.Actions>
+          <Button color="green" onClick={handleClose}>
+            <Icon name="checkmark" /> Close
+          </Button>
+        </Modal.Actions>
+      </Modal>
+    );
+  };
+
   const SidebarMain = () => {
     return (
       <>
         <SearchModal />
+        <UpdatesModal />
         <Sidebar
           as={Menu}
           animation="overlay"
@@ -187,6 +222,9 @@ function App() {
         >
           <Menu.Item onClick={handleSearch}>
             <Icon name="search" /> Search
+          </Menu.Item>
+          <Menu.Item onClick={handleUpdates}>
+            <Icon name="list alternate outline" /> Recently added
           </Menu.Item>
           <Menu.Item onClick={handleEditSong}>
             <Icon name="edit" /> Edit Song

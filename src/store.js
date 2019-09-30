@@ -18,7 +18,8 @@ import { Dimmer, Loader, Message } from "semantic-ui-react";
 const songStore = {
   songSets: new Map(),
   setChoiceOptions: [],
-  songChoiceOptions: {}
+  songChoiceOptions: {},
+  mostRecentlyAdded: null
 };
 
 // initial state values
@@ -76,6 +77,20 @@ export const GET_SONG_CONTENT_BY_ID = gql`
   }
 `;
 
+export const GET_MOSTRECENTLY_ADDED = gql`
+  query GetMostrecentlyAdded {
+    songs(sort: "createdAt:desc", limit: 50) {
+      _id
+      title
+      authors
+      language
+      keywords
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
 export const SongContext = React.createContext();
 
 // this is the 'reducer' function that got dispatched
@@ -114,6 +129,18 @@ export function songStoreReducer(state, action) {
       return {
         ...state,
         ...songValues(songList, index)
+      };
+    case "selectSongById":
+      const language = action.payload.language;
+      const title = action.payload.title;
+      songList = store.songSets.get(language);
+      const sel = store.songChoiceOptions[language].filter(
+        e => e.text === title
+      );
+      return {
+        ...state,
+        setName: language,
+        ...songValues(songList, sel[0] ? parseInt(sel[0].value, 10) : 0)
       };
     case "selectKey":
       return {
@@ -287,7 +314,7 @@ export function SongProvider(props) {
       });
       setInitDefault(true);
     }
-    return initDefault ? true : false;
+    return initDefault;
   };
 
   // The <Test /> component can be put at the end of the SongContext.Provider component
