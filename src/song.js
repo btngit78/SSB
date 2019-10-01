@@ -1,4 +1,4 @@
-import React, { useContext } from "react";
+import React, { useContext, useState } from "react";
 import {
   Label,
   Segment,
@@ -7,7 +7,9 @@ import {
   Message,
   Table,
   Icon,
-  Button
+  Button,
+  Modal,
+  Header
 } from "semantic-ui-react";
 import { useQuery } from "@apollo/react-hooks";
 
@@ -131,6 +133,8 @@ export function RecentlyAddedDisplay(props) {
 
   console.log("--- RecentlyAddedDisplay");
   const [state, dispatch] = useContext(SongContext);
+  const [resyncModalOpen, setResyncModalOpen] = useState(false);
+  let inMemDBIsCurrent = false;
 
   const { data, loading, error, refetch, networkStatus } = useQuery(
     GET_MOSTRECENTLY_ADDED,
@@ -143,7 +147,13 @@ export function RecentlyAddedDisplay(props) {
     const mra = state.store.mostRecentlyAdded;
     if (mra && mra.length) {
       const entry = mra.filter(e => e.title === name);
-      // console.log(entry);
+      const songList = state.store.songSets.get(entry[0].language);
+      const sle = songList.filter(e => e.title === entry[0].title);
+      if (!songList || !sle.length) {
+        // either set or song is not the store, need to refresh
+        setResyncModalOpen(true);
+        return;
+      }
       dispatch({
         type: "selectSongById",
         payload: entry[0]
@@ -196,25 +206,32 @@ export function RecentlyAddedDisplay(props) {
     );
   }
   state.store.mostRecentlyAdded = data.songs;
+  inMemDBIsCurrent =
+    moment(state.store.timeInit).diff(data.songs[0].createdAt) > 0;
 
   return (
     <>
       <Button
-        content="Refetch"
+        content={inMemDBIsCurrent ? "Refetch query" : "Reload app"}
         icon="redo"
         labelPosition="left"
         floated="left"
         basic
         compact
         color="pink"
-        onClick={() => refetch()}
+        onClick={() => {
+          inMemDBIsCurrent ? refetch() : window.location.reload();
+        }}
       />
+      <Header size="small" floated="right">
+        Last synced with DB at: {moment(state.store.timeInit).format("LLL")}
+      </Header>
       <pre>&nbsp;</pre>
-      <Table striped celled singleLine selectable size="large">
+      <Table striped fixed selectable size="large">
         <Table.Header>
           <Table.Row>
-            <Table.HeaderCell width={1}>Time added</Table.HeaderCell>
-            <Table.HeaderCell>Title</Table.HeaderCell>
+            <Table.HeaderCell width={2}>Time added</Table.HeaderCell>
+            <Table.HeaderCell width={5}>Title</Table.HeaderCell>
             <Table.HeaderCell width={4}>Authors</Table.HeaderCell>
             <Table.HeaderCell width={1}>Language</Table.HeaderCell>
             <Table.HeaderCell width={2}>Keywords</Table.HeaderCell>
@@ -248,6 +265,33 @@ export function RecentlyAddedDisplay(props) {
             : null}
         </Table.Body>
       </Table>
+      <Modal centered={true} size="small" open={resyncModalOpen}>
+        <Header
+          icon="archive"
+          content="Database and directory not in sync!"
+          color="orange"
+        />
+        <Modal.Content>
+          <Header size="small">
+            The song selected was not found locally. It appears that the current
+            directory of song sets and the cloud database is not in sync. Some
+            songs may have been added while others deleted.
+          </Header>
+          <Header size="small">
+            Do you want to refesh the app now? (You may reload the app directly
+            on this browser's refresh button later, or click 'Refresh' to reload
+            the directory now.)
+          </Header>
+        </Modal.Content>
+        <Modal.Actions>
+          <Button basic color="red" onClick={() => setResyncModalOpen(false)}>
+            <Icon name="remove" /> Later
+          </Button>
+          <Button basic color="green" onClick={() => window.location.reload()}>
+            <Icon name="checkmark" /> Refresh
+          </Button>
+        </Modal.Actions>
+      </Modal>
     </>
   );
 }

@@ -16,6 +16,7 @@ import { Dimmer, Loader, Message } from "semantic-ui-react";
 // When we eventually do add/delete set/song, another reducer & context is needed or
 // we can use useState to handle this separately from mere set/song selection changes.
 const songStore = {
+  timeInit: null,
   songSets: new Map(),
   setChoiceOptions: [],
   songChoiceOptions: {},
@@ -61,6 +62,8 @@ const GET_SONGS_ALL = gql`
       keywords
       language
       tempo
+      createdAt
+      updatedAt
     }
   }
 `;
@@ -80,11 +83,13 @@ export const GET_SONG_CONTENT_BY_ID = gql`
 export const GET_MOSTRECENTLY_ADDED = gql`
   query GetMostrecentlyAdded {
     songs(sort: "createdAt:desc", limit: 50) {
-      _id
+      id
       title
       authors
-      language
+      key
       keywords
+      language
+      tempo
       createdAt
       updatedAt
     }
@@ -134,14 +139,20 @@ export function songStoreReducer(state, action) {
       const language = action.payload.language;
       const title = action.payload.title;
       songList = store.songSets.get(language);
-      const sel = store.songChoiceOptions[language].filter(
-        e => e.text === title
-      );
-      return {
-        ...state,
-        setName: language,
-        ...songValues(songList, sel[0] ? parseInt(sel[0].value, 10) : 0)
-      };
+      if (songList) {
+        const sel = store.songChoiceOptions[language].filter(
+          e => e.text === title
+        );
+        if (sel.length) {
+          return {
+            ...state,
+            setName: language,
+            ...songValues(songList, sel[0] ? parseInt(sel[0].value, 10) : 0)
+          };
+        }
+      }
+      // no change since either language's set or song title is not found
+      return state;
     case "selectKey":
       return {
         ...state,
@@ -232,6 +243,7 @@ function SongStoreInit(props) {
   }
 
   console.log("Total song entries fetched: " + data.songs.length);
+  state.store.timeInit = Date.now();
 
   // build song tables grouped by language
   data.songs.map(song => installSong(songSets, song));
