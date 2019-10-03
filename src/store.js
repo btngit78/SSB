@@ -19,8 +19,7 @@ const songStore = {
   timeInit: null,
   songSets: new Map(),
   setChoiceOptions: [],
-  songChoiceOptions: {},
-  mostRecentlyAdded: null
+  songChoiceOptions: {}
 };
 
 // initial state values

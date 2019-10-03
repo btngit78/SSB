@@ -1,6 +1,5 @@
 import React, { useContext, useState } from "react";
 import {
-  Label,
   Segment,
   Dimmer,
   Loader,
@@ -85,22 +84,33 @@ export default function SongDisplay(props) {
   if (error) {
     return (
       <div>
-        <Message size="huge">
-          <Message.Header>Error in loading data.</Message.Header>
-          <p>{error.message}</p>
+        <Message icon negative size="big">
+          <Icon name="database" />
+          <Message.Content>
+            <Message.Header>Error in loading data.</Message.Header>
+            <p>{error.message}</p>
+          </Message.Content>
         </Message>
       </div>
     );
   }
 
-  // return warning if song empty
-  if (data.song.content.length === 0) {
+  // return error if song not found or song empty
+  if (!data.song || !data.song.content) {
     return (
-      <Segment>
-        <Label basic color="red" size="huge">
-          Something wrong! File is empty
-        </Label>
-      </Segment>
+      <div>
+        <Message icon negative size="big">
+          <Icon name="database" />
+          <Message.Content>
+            <Message.Header>Song is not found!</Message.Header>
+            <p>
+              It's likely that the song has been removed from the database and
+              the app hasn't been synced with the cloud for a while.
+            </p>
+            <p>Refresh the app to synchronize with the cloud DB.</p>
+          </Message.Content>
+        </Message>
+      </div>
     );
   }
 
@@ -135,6 +145,7 @@ export function RecentlyAddedDisplay(props) {
   const [state, dispatch] = useContext(SongContext);
   const [resyncModalOpen, setResyncModalOpen] = useState(false);
   let inMemDBIsCurrent = false;
+  let newCount = 0;
 
   const { data, loading, error, refetch, networkStatus } = useQuery(
     GET_MOSTRECENTLY_ADDED,
@@ -144,7 +155,7 @@ export function RecentlyAddedDisplay(props) {
   );
 
   const handleSelection = (ev, { name }) => {
-    const mra = state.store.mostRecentlyAdded;
+    const mra = data.songs;
     if (mra && mra.length) {
       const entry = mra.filter(e => e.title === name);
       const songList = state.store.songSets.get(entry[0].language);
@@ -187,27 +198,34 @@ export function RecentlyAddedDisplay(props) {
   if (error) {
     return (
       <div>
-        <Message size="huge">
-          <Message.Header>Error in fetching updates.</Message.Header>
-          <p>{error.message}</p>
+        <Message icon negative size="big">
+          <Icon name="database" />
+          <Message.Content>
+            <Message.Header>Error in fetching updates.</Message.Header>
+            <p>{error.message}</p>
+          </Message.Content>
         </Message>
       </div>
     );
   }
 
-  // return warning if no song
-  if (data.songs.length === 0) {
+  if (!data.songs || !data.songs.length) {
     return (
-      <Segment>
-        <Label basic color="red" size="huge">
-          Something wrong! Database appears to be empty.
-        </Label>
-      </Segment>
+      <Message icon negative size="big">
+        <Icon name="database" />
+        <Message.Content>
+          Unexpected error condition. Try refesh the app.
+        </Message.Content>
+      </Message>
     );
   }
-  state.store.mostRecentlyAdded = data.songs;
+
   inMemDBIsCurrent =
     moment(state.store.timeInit).diff(data.songs[0].createdAt) > 0;
+  for (var i = 0; i < data.songs.length; i++) {
+    if (moment(state.store.timeInit).diff(data.songs[i].createdAt) < 0)
+      newCount++;
+  }
 
   return (
     <>
@@ -223,9 +241,12 @@ export function RecentlyAddedDisplay(props) {
           inMemDBIsCurrent ? refetch() : window.location.reload();
         }}
       />
-      <Header size="small" floated="right">
-        Last synced with DB at: {moment(state.store.timeInit).format("LLL")}
-      </Header>
+      {!inMemDBIsCurrent ? (
+        <Header size="small" floated="right">
+          {newCount} new song{newCount > 1 ? "s" : ""} have been added since
+          last synced on: {moment(state.store.timeInit).format("LLL")}
+        </Header>
+      ) : null}
       <pre>&nbsp;</pre>
       <Table striped fixed selectable size="large">
         <Table.Header>
