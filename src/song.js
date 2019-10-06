@@ -8,7 +8,8 @@ import {
   Icon,
   Button,
   Modal,
-  Header
+  Header,
+  Dropdown
 } from "semantic-ui-react";
 import { useQuery } from "@apollo/react-hooks";
 
@@ -21,6 +22,7 @@ import {
   GET_MOSTRECENTLY_ADDED
 } from "./store";
 import moment from "moment";
+import _ from "lodash";
 
 // song have been not assigned a key, see if we can
 // determine its key (assuming song ends in normal pattern and
@@ -230,16 +232,22 @@ export function RecentlyAddedDisplay(props) {
   return (
     <>
       <Button
+        basic
         content={inMemDBIsCurrent ? "Refetch query" : "Reload app"}
         icon="redo"
-        labelPosition="left"
         floated="left"
-        basic
-        compact
         color="pink"
         onClick={() => {
           inMemDBIsCurrent ? refetch() : window.location.reload();
         }}
+      />
+      <Button
+        basic
+        icon="checkmark"
+        color="green"
+        content="Close screen"
+        floated="left"
+        onClick={closeHandler}
       />
       {!inMemDBIsCurrent ? (
         <Header size="small" floated="right">
@@ -247,6 +255,7 @@ export function RecentlyAddedDisplay(props) {
           last synced on: {moment(state.store.timeInit).format("LLL")}
         </Header>
       ) : null}
+
       <pre>&nbsp;</pre>
       <Table striped fixed selectable size="large">
         <Table.Header>
@@ -313,6 +322,153 @@ export function RecentlyAddedDisplay(props) {
           </Button>
         </Modal.Actions>
       </Modal>
+    </>
+  );
+}
+
+export function SearchDisplay(props) {
+  const closeHandler = props.closeHandler;
+
+  console.log("--- SearchDisplay");
+  const [state, dispatch] = useContext(SongContext);
+  const [authChoices, setAuthChoices] = useState(
+    state.store.lastAuthorsSelected
+  );
+  const [authorSearchRes, setAuthorSearchRes] = useState([]);
+  const [reInitRes, setReInitRes] = useState(
+    authChoices != null && !authorSearchRes.length
+  );
+  let authorSelOptions = [];
+  const apl = new Map();
+
+  for (let entry of state.store.authorsOptions.keys()) {
+    authorSelOptions.push({
+      key: entry.toLocaleLowerCase(),
+      value: entry,
+      text: entry
+    });
+  }
+  authorSelOptions.sort((a, b) => a.text.localeCompare(b.text));
+  // console.log(authorSelOptions);
+
+  const handleSongChoice = (ev, { name }) => {
+    let ss = name.split("-");
+    // ss[0] is language set index, ss[1] is index of song in result list
+    let lindex = parseInt(ss[0], 10);
+    let entry = authorSearchRes[lindex][parseInt(ss[1], 10)];
+    dispatch({
+      type: "selectSongById",
+      payload: entry
+    });
+    closeHandler();
+  };
+
+  const handleSearch = () => {
+    let tempRes = [];
+
+    // build author list per language
+    authChoices.forEach(auth => {
+      const lang = state.store.authorsOptions.get(auth);
+      if (!apl.has(lang)) {
+        apl.set(lang, [auth]);
+      } else {
+        const cur = apl.get(lang);
+        apl.set(lang, [...cur, auth]);
+      }
+    });
+
+    // search songlist for matching author(s)
+    apl.forEach((values, key) => {
+      let searchRegExp = new RegExp(values.join("|"), "i");
+      const songList = state.store.songSets.get(key);
+      let res = songList.filter(se => se.authors.match(searchRegExp));
+      res = _.orderBy(res, ["authors", "title"], ["asc", "asc"]);
+      tempRes.push(res);
+    });
+    // console.log(tempRes);
+    setAuthorSearchRes(tempRes);
+    state.store.lastAuthorsSelected = authChoices;
+  };
+
+  if (reInitRes) {
+    // rebuild last search once if author choices was indeed saved
+    handleSearch();
+    setReInitRes(false);
+  }
+
+  return (
+    <>
+      <Button
+        basic
+        color="pink"
+        floated="left"
+        content="Show results"
+        onClick={handleSearch}
+      />
+      <Button
+        basic
+        icon="checkmark"
+        color="green"
+        floated="left"
+        onClick={closeHandler}
+        content="Close screen"
+      />
+      <pre>&nbsp;</pre>
+      <Dropdown
+        placeholder="Authors"
+        fluid
+        search
+        multiple
+        selection
+        value={authChoices}
+        options={authorSelOptions}
+        onChange={(ev, data) => setAuthChoices(data.value)}
+      />
+
+      <Table striped fixed selectable size="large">
+        <Table.Header>
+          {authorSearchRes.length ? (
+            <>
+              <Table.Row>
+                <Table.HeaderCell width={2}>Authors:</Table.HeaderCell>
+                <Table.HeaderCell width={4}>Title</Table.HeaderCell>
+                <Table.HeaderCell width={2}>Keywords</Table.HeaderCell>
+              </Table.Row>
+            </>
+          ) : (
+            <Table.Row>
+              <Table.HeaderCell>(Result will be shown here)</Table.HeaderCell>
+            </Table.Row>
+          )}
+        </Table.Header>
+
+        <Table.Body>
+          {authorSearchRes.length
+            ? authorSearchRes.map((langlist, lindex) =>
+                langlist.map((entry, index) => (
+                  <React.Fragment key={entry.id}>
+                    <Table.Row>
+                      <Table.Cell>{entry.authors}</Table.Cell>
+                      <Table.Cell>
+                        <Button
+                          icon
+                          compact
+                          onClick={handleSongChoice}
+                          name={lindex.toString() + "-" + index.toString()}
+                        >
+                          <Icon name="play" size="small" />
+                        </Button>
+                        &nbsp;&nbsp;
+                        <b>{entry.title}</b>
+                      </Table.Cell>
+                      <Table.Cell>{entry.keywords}</Table.Cell>
+                    </Table.Row>
+                  </React.Fragment>
+                ))
+              )
+            : null}
+        </Table.Body>
+      </Table>
     </>
   );
 }

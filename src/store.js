@@ -19,7 +19,9 @@ const songStore = {
   timeInit: null,
   songSets: new Map(),
   setChoiceOptions: [],
-  songChoiceOptions: {}
+  songChoiceOptions: {},
+  authorsOptions: new Map(),
+  lastAuthorsSelected: null
 };
 
 // initial state values
@@ -182,7 +184,10 @@ function installSong(songSets, song) {
     key: song.key !== null ? song.key : "",
     keywords: song.keywords !== null ? song.keywords : "",
     tempo: song.tempo > 0 ? song.tempo : "",
-    id: song.id
+    id: song.id,
+    language: song.language,
+    createdAt: song.createdAt,
+    updatedAt: song.updatedAt
   });
 }
 
@@ -197,6 +202,34 @@ function SongStoreInit(props) {
   });
   const [state] = useContext(SongContext);
   const songSets = state.store.songSets;
+
+  function addAuthor(author, language) {
+    // add the first name in the list of authors into the set
+    if (author.length) {
+      let names = author.split(/[,|&]/);
+      if (names.length) {
+        // drop author that is likely a comment (or unclear authorship)
+        if (names[0].charAt(0) !== "(" && names[0].charAt(0) !== "#") {
+          let newval = names[0].trim();
+          for (var i = 0; i < newval.length; i++) {
+            if (newval.charAt(i) === " ") {
+              // uppercase the initial char to make sure names will be catalogued properly
+              if (newval.charCodeAt(i + 1) > "Z".charCodeAt(0)) {
+                let s = newval
+                  .charAt(i + 1)
+                  .toUpperCase()
+                  .concat(newval.substring(i + 2));
+                newval = newval.substring(0, i + 1).concat(s);
+              }
+            }
+          }
+          if (!state.store.authorsOptions.has(newval)) {
+            state.store.authorsOptions.set(newval, language);
+          }
+        }
+      }
+    }
+  }
 
   console.log("--- SongStoreInit");
 
@@ -258,18 +291,20 @@ function SongStoreInit(props) {
     state.store.setChoiceOptions.push({ text: val, value: val })
   );
 
-  // build song select list (text/value) for display
+  // build song select list (text/value) for display,
+  // also add author name into set for selection later
   songSets.forEach((value, key, map) => {
     console.log(
       "Set [" + key + "] has " + songSets.get(key).length + " entries."
     );
     state.store.songChoiceOptions[key] = [];
-    value.forEach((cur, index) =>
+    value.forEach((cur, index) => {
       state.store.songChoiceOptions[key].push({
         text: cur.title,
         value: index
-      })
-    );
+      });
+      addAuthor(cur.authors, key);
+    });
   });
 
   props.readyCallback(true);

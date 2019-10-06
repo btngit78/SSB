@@ -13,7 +13,7 @@ import {
   Checkbox,
   Modal
 } from "semantic-ui-react";
-import SongDisplay, { RecentlyAddedDisplay } from "./song";
+import SongDisplay, { RecentlyAddedDisplay, SearchDisplay } from "./song";
 import { setStyle } from "./lib/styling";
 
 import "./app.css";
@@ -58,6 +58,7 @@ function useWindowWidth() {
 function App() {
   const minWidth = 600;
   const altmenuWidth = 800;
+  const preferredWidth = 900;
   const width = useWindowWidth();
   const [visible, setVisible] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -65,6 +66,14 @@ function App() {
 
   console.log("--- App");
   setStyle();
+
+  const modalWidthPercent = () => {
+    return (
+      Math.floor(
+        100 - 30 * (Math.min(width - 100, preferredWidth) / preferredWidth)
+      ).toString() + "%"
+    );
+  };
 
   function handleSidebarVisible(e, obj) {
     setVisible(true);
@@ -145,6 +154,7 @@ function App() {
   }
 
   const SearchModal = () => {
+    console.log("--- SearchModal");
     const handleClose = () => {
       setSearchModalOpen(false);
     };
@@ -154,20 +164,14 @@ function App() {
         open={searchModalOpen}
         onClose={handleClose}
         centered={false}
-        style={{ width: "70%" }}
+        style={{ width: modalWidthPercent() }}
       >
-        <Modal.Header>Search for song</Modal.Header>
+        <Modal.Header style={{ backgroundColor: "#d2f3e1" }}>
+          Search for songs by author
+        </Modal.Header>
         <Modal.Content style={{ textAlign: "center" }}>
-          <p>This will be implemented in the future.</p>
+          <SearchDisplay closeHandler={handleClose} />
         </Modal.Content>
-        <Modal.Actions>
-          <Button basic color="red" onClick={handleClose}>
-            <Icon name="remove" /> Cancel
-          </Button>
-          <Button color="green" onClick={handleClose}>
-            <Icon name="checkmark" /> Import selected song
-          </Button>
-        </Modal.Actions>
       </Modal>
     );
   };
@@ -188,7 +192,8 @@ function App() {
         open={updatesModalOpen}
         onClose={handleClose}
         centered={false}
-        style={{ width: "70%" }}
+        closeOnEscape={false}
+        style={{ width: modalWidthPercent() }}
       >
         <Modal.Header style={{ backgroundColor: "#d2f3e1" }}>
           50 Most Recently Added Songs
@@ -196,11 +201,6 @@ function App() {
         <Modal.Content style={{ textAlign: "center" }}>
           <RecentlyAddedDisplay closeHandler={handleClose} />
         </Modal.Content>
-        <Modal.Actions>
-          <Button color="green" onClick={handleClose}>
-            <Icon name="checkmark" /> Close
-          </Button>
-        </Modal.Actions>
       </Modal>
     );
   };
@@ -208,8 +208,8 @@ function App() {
   const SidebarMain = () => {
     return (
       <>
-        <SearchModal />
-        <UpdatesModal />
+        {searchModalOpen ? <SearchModal /> : null}
+        {updatesModalOpen ? <UpdatesModal /> : null}
         <Sidebar
           as={Menu}
           animation="overlay"
@@ -221,7 +221,7 @@ function App() {
           size="large"
         >
           <Menu.Item onClick={handleSearch}>
-            <Icon name="search" /> Search
+            <Icon name="search" /> Search by Authors
           </Menu.Item>
           <Menu.Item onClick={handleUpdates}>
             <Icon name="list alternate outline" /> Recently added
