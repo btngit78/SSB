@@ -13,7 +13,11 @@ import {
   Checkbox,
   Modal
 } from "semantic-ui-react";
-import SongDisplay, { RecentlyAddedDisplay, SearchDisplay } from "./song";
+import SongDisplay, {
+  RecentlyAddedDisplay,
+  SearchDisplay,
+  EditSongDisplay
+} from "./song";
 import { setStyle } from "./lib/styling";
 
 import "./app.css";
@@ -63,11 +67,18 @@ function App() {
   const [visible, setVisible] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [updatesModalOpen, setUpdatesModalOpen] = useState(false);
+  const [editSongModalOpen, setEditSongModalOpen] = useState(false);
 
   console.log("--- App");
   setStyle();
 
-  const modalWidthPercent = () => {
+  // return specified pct of width if current width is < preferredWidth
+  // else set a minimum of 70% of current width
+  const modalWidthPercent = pct => {
+    if (pct) {
+      if (width < preferredWidth) return pct.toString() + "%";
+    }
+
     return (
       Math.floor(
         100 - 30 * (Math.min(width - 100, preferredWidth) / preferredWidth)
@@ -121,11 +132,6 @@ function App() {
           : String.fromCharCode(currentKey.charCodeAt(0) - 1);
     }
     return currentKey + (minor ? "m" : "");
-  }
-
-  function handleEditSong(e, obj) {
-    alert("will do edit later");
-    handleSidebarHide();
   }
 
   function handleEditSet(e, obj) {
@@ -205,11 +211,42 @@ function App() {
     );
   };
 
+  function handleEditSong(e, obj) {
+    setEditSongModalOpen(true);
+    handleSidebarHide();
+  }
+
+  const EditSongModal = () => {
+    console.log("--- EditSongModal");
+    const handleClose = () => {
+      setEditSongModalOpen(false);
+    };
+
+    return (
+      <Modal
+        open={editSongModalOpen}
+        onClose={handleClose}
+        centered={false}
+        closeOnEscape={false}
+        closeOnDimmerClick={false}
+        style={{ width: modalWidthPercent(90) }}
+      >
+        <Modal.Header style={{ backgroundColor: "#d2f3e1" }}>
+          Edit Song
+        </Modal.Header>
+        <Modal.Content style={{ textAlign: "left" }}>
+          <EditSongDisplay closeHandler={handleClose} />
+        </Modal.Content>
+      </Modal>
+    );
+  };
+
   const SidebarMain = () => {
     return (
       <>
         {searchModalOpen ? <SearchModal /> : null}
         {updatesModalOpen ? <UpdatesModal /> : null}
+        {editSongModalOpen ? <EditSongModal /> : null}
         <Sidebar
           as={Menu}
           animation="overlay"

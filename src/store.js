@@ -34,6 +34,7 @@ const initialState = {
   songToKey: "C",
   songKeywords: "",
   songId: "",
+  songLanguage: "",
   songContent: "",
   noChords: true,
   chordOff: false,
@@ -72,11 +73,16 @@ const GET_SONGS_ALL = gql`
 export const GET_SONG_CONTENT_BY_ID = gql`
   query GetSongContentByID($id: ID!) {
     song(id: $id) {
+      id
       title
       authors
-      content
       key
       keywords
+      language
+      tempo
+      createdAt
+      updatedAt
+      content
     }
   }
 `;
@@ -93,6 +99,40 @@ export const GET_MOSTRECENTLY_ADDED = gql`
       tempo
       createdAt
       updatedAt
+    }
+  }
+`;
+
+export const UPDATE_SONG = gql`
+  mutation UpdateSong(
+    $id: ID!
+    $authors: String
+    $key: String
+    $keywords: String
+    $content: String!
+  ) {
+    updateSong(
+      input: {
+        where: { id: $id }
+        data: {
+          authors: $authors
+          key: $key
+          keywords: $keywords
+          content: $content
+        }
+      }
+    ) {
+      song {
+        id
+        title
+        authors
+        key
+        keywords
+        language
+        tempo
+        createdAt
+        updatedAt
+      }
     }
   }
 `;
@@ -114,6 +154,7 @@ export function songStoreReducer(state, action) {
       songKey: songList[index].key,
       songKeywords: songList[index].keywords,
       songId: songList[index].id,
+      songLanguage: songList[index].language,
       songToKey: songList[index].key,
       noChords: songList[index].key === "" ? true : false
     };
@@ -136,7 +177,7 @@ export function songStoreReducer(state, action) {
         ...state,
         ...songValues(songList, index)
       };
-    case "selectSongById":
+    case "selectSongByTitle":
       const language = action.payload.language;
       const title = action.payload.title;
       songList = store.songSets.get(language);
@@ -166,6 +207,28 @@ export function songStoreReducer(state, action) {
       };
     default:
       return state;
+  }
+}
+
+// update the store's directory of a song entry with data object which should contain all
+// relevant fields except the song content itself
+export function updateEntryInStore(store, song) {
+  if (!song || !song.language || !song.title) {
+    console.log(song);
+    return;
+  }
+
+  const songList = store.songSets.get(song.language);
+  if (songList) {
+    const index = songList.findIndex(el => el.title === song.title);
+    if (song.authors) songList[index].authors = song.authors;
+
+    if (song.key) songList[index].key = song.key;
+    if (song.keywords) songList[index].keywords = song.keywords;
+    if (song.language) songList[index].language = song.language;
+    if (song.tempo) songList[index].tempo = song.tempo;
+    if (song.createdAt) songList[index].createdAt = song.createdAt;
+    if (song.updatedAt) songList[index].updatedAt = song.updatedAt;
   }
 }
 
@@ -206,7 +269,7 @@ function SongStoreInit(props) {
   function addAuthor(author, language) {
     // add the first name in the list of authors into the set
     if (author.length) {
-      let names = author.split(/[,|&]/);
+      let names = author.split(/[,|&|(]/);
       if (names.length) {
         // drop author that is likely a comment (or unclear authorship)
         if (names[0].charAt(0) !== "(" && names[0].charAt(0) !== "#") {
@@ -240,7 +303,7 @@ function SongStoreInit(props) {
     return (
       <div>
         <Dimmer active inverted>
-          <Loader size="huge" inverted>
+          <Loader size="big" inverted>
             Loading ...
           </Loader>
         </Dimmer>
@@ -251,7 +314,7 @@ function SongStoreInit(props) {
     props.errorCallback(true);
     return (
       <div>
-        <Message size="huge">
+        <Message size="big">
           <Message.Header>Error in loading data.</Message.Header>
           <p>{error.message}</p>
         </Message>
@@ -263,7 +326,7 @@ function SongStoreInit(props) {
     props.errorCallback(true);
     return (
       <div>
-        <Message size="huge">
+        <Message size="big">
           <Message.Header>
             Database is empty.
             <br />
@@ -374,8 +437,8 @@ export function SongProvider(props) {
             readyCallback={setStoreReady}
           />
         )}
+        {!loadingError && storeReady && initDefaultSetSong() && props.children}
       </ApolloProvider>
-      {!loadingError && storeReady && initDefaultSetSong() && props.children}
     </SongContext.Provider>
   );
 }

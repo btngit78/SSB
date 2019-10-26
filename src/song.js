@@ -9,9 +9,13 @@ import {
   Button,
   Modal,
   Header,
-  Dropdown
+  Dropdown,
+  TextArea,
+  Grid,
+  Input,
+  Form
 } from "semantic-ui-react";
-import { useQuery } from "@apollo/react-hooks";
+import { useQuery, useMutation } from "@apollo/react-hooks";
 
 import FormatBody from "./formatBody";
 import { findKeyInSong } from "./lib/utils";
@@ -19,10 +23,12 @@ import { findKeyInSong } from "./lib/utils";
 import {
   SongContext,
   GET_SONG_CONTENT_BY_ID,
-  GET_MOSTRECENTLY_ADDED
+  GET_MOSTRECENTLY_ADDED,
+  UPDATE_SONG,
+  updateEntryInStore
 } from "./store";
+
 import moment from "moment";
-import _ from "lodash";
 
 // song have been not assigned a key, see if we can
 // determine its key (assuming song ends in normal pattern and
@@ -64,6 +70,35 @@ function autoDetectKey(state) {
   }
 }
 
+function DatabaseErrorMsg(props) {
+  const [mesg, exitHdlr] = { ...props };
+
+  return (
+    <div>
+      <Message icon negative size="big">
+        <Icon name="database" />
+        <Message.Content>
+          <Message.Header>Error in loading data.</Message.Header>
+          <p>
+            An error occurred in reading the database. Contact the admin if this
+            error is persistent.
+          </p>
+          <p>{mesg}</p>
+          {exitHdlr ? (
+            <Button
+              basic
+              size="large"
+              color="black"
+              content="Close"
+              onClick={exitHdlr}
+            ></Button>
+          ) : null}
+        </Message.Content>
+      </Message>
+    </div>
+  );
+}
+
 export default function SongDisplay(props) {
   const state = props.state;
   const { data, loading, error } = useQuery(GET_SONG_CONTENT_BY_ID, {
@@ -76,7 +111,7 @@ export default function SongDisplay(props) {
     return (
       <div>
         <Dimmer active inverted>
-          <Loader size="huge" inverted>
+          <Loader size="big" inverted>
             Loading song {state.songName}...
           </Loader>
         </Dimmer>
@@ -84,17 +119,7 @@ export default function SongDisplay(props) {
     );
 
   if (error) {
-    return (
-      <div>
-        <Message icon negative size="big">
-          <Icon name="database" />
-          <Message.Content>
-            <Message.Header>Error in loading data.</Message.Header>
-            <p>{error.message}</p>
-          </Message.Content>
-        </Message>
-      </div>
-    );
+    return <DatabaseErrorMsg mesg={error.message} />;
   }
 
   // return error if song not found or song empty
@@ -168,7 +193,7 @@ export function RecentlyAddedDisplay(props) {
         return;
       }
       dispatch({
-        type: "selectSongById",
+        type: "selectSongByTitle",
         payload: entry[0]
       });
       closeHandler();
@@ -179,7 +204,7 @@ export function RecentlyAddedDisplay(props) {
     return (
       <div>
         <Dimmer active inverted>
-          <Loader size="huge" inverted>
+          <Loader size="big" inverted>
             Refetching ...
           </Loader>
         </Dimmer>
@@ -190,7 +215,7 @@ export function RecentlyAddedDisplay(props) {
     return (
       <div>
         <Dimmer active inverted>
-          <Loader size="huge" inverted>
+          <Loader size="big" inverted>
             Fetching updates from database ...
           </Loader>
         </Dimmer>
@@ -198,17 +223,7 @@ export function RecentlyAddedDisplay(props) {
     );
 
   if (error) {
-    return (
-      <div>
-        <Message icon negative size="big">
-          <Icon name="database" />
-          <Message.Content>
-            <Message.Header>Error in fetching updates.</Message.Header>
-            <p>{error.message}</p>
-          </Message.Content>
-        </Message>
-      </div>
-    );
+    return <DatabaseErrorMsg mesg={error.message} />;
   }
 
   if (!data.songs || !data.songs.length) {
@@ -260,6 +275,9 @@ export function RecentlyAddedDisplay(props) {
       <Table striped fixed selectable size="large">
         <Table.Header>
           <Table.Row>
+            <Table.HeaderCell collapsing width={1}>
+              No.
+            </Table.HeaderCell>
             <Table.HeaderCell width={2}>Time added</Table.HeaderCell>
             <Table.HeaderCell width={5}>Title</Table.HeaderCell>
             <Table.HeaderCell width={4}>Authors</Table.HeaderCell>
@@ -270,9 +288,10 @@ export function RecentlyAddedDisplay(props) {
 
         <Table.Body>
           {data.songs.length
-            ? data.songs.map(entry => (
+            ? data.songs.map((entry, idx) => (
                 <React.Fragment key={entry.id}>
                   <Table.Row>
+                    <Table.Cell collapsing>{idx + 1}.</Table.Cell>
                     <Table.Cell>{moment(entry.createdAt).fromNow()}</Table.Cell>
                     <Table.Cell>
                       <Button
@@ -332,24 +351,27 @@ export function SearchDisplay(props) {
   console.log("--- SearchDisplay");
   const [state, dispatch] = useContext(SongContext);
   const [authChoices, setAuthChoices] = useState(
-    state.store.lastAuthorsSelected
+    state.store.lastAuthorsSelected ? state.store.lastAuthorsSelected : []
   );
   const [authorSearchRes, setAuthorSearchRes] = useState([]);
   const [reInitRes, setReInitRes] = useState(
     authChoices != null && !authorSearchRes.length
   );
-  let authorSelOptions = [];
-  const apl = new Map();
-
-  for (let entry of state.store.authorsOptions.keys()) {
-    authorSelOptions.push({
-      key: entry.toLocaleLowerCase(),
-      value: entry,
-      text: entry
-    });
-  }
-  authorSelOptions.sort((a, b) => a.text.localeCompare(b.text));
-  // console.log(authorSelOptions);
+  const [selClose, setSelClose] = useState(true);
+  const [authorSelOptions] = useState(() => {
+    // TBD: should handle cases where songList in store is updated via other queries
+    const opts = [];
+    for (let entry of state.store.authorsOptions.keys()) {
+      opts.push({
+        key: entry.toLocaleLowerCase(),
+        value: entry,
+        text: entry
+      });
+    }
+    opts.sort((a, b) => a.text.localeCompare(b.text));
+    return opts;
+  });
+  let cumIdx = 0;
 
   const handleSongChoice = (ev, { name }) => {
     let ss = name.split("-");
@@ -357,14 +379,21 @@ export function SearchDisplay(props) {
     let lindex = parseInt(ss[0], 10);
     let entry = authorSearchRes[lindex][parseInt(ss[1], 10)];
     dispatch({
-      type: "selectSongById",
+      type: "selectSongByTitle",
       payload: entry
     });
     closeHandler();
   };
 
+  const handleReset = () => {
+    setAuthChoices([]);
+    setAuthorSearchRes([]);
+    state.store.lastAuthorsSelected = null;
+  };
+
   const handleSearch = () => {
-    let tempRes = [];
+    const apl = new Map();
+    const tempRes = [];
 
     // build author list per language
     authChoices.forEach(auth => {
@@ -381,12 +410,14 @@ export function SearchDisplay(props) {
     apl.forEach((values, key) => {
       let searchRegExp = new RegExp(values.join("|"), "i");
       const songList = state.store.songSets.get(key);
-      let res = songList.filter(se => se.authors.match(searchRegExp));
-      res = _.orderBy(res, ["authors", "title"], ["asc", "asc"]);
+      let res = songList
+        .filter(se => se.authors.match(searchRegExp))
+        .sort((a, b) => a.authors.localeCompare(b.authors));
       tempRes.push(res);
     });
     // console.log(tempRes);
     setAuthorSearchRes(tempRes);
+    setSelClose(true);
     state.store.lastAuthorsSelected = authChoices;
   };
 
@@ -400,6 +431,14 @@ export function SearchDisplay(props) {
     <>
       <Button
         basic
+        icon="cancel"
+        color="black"
+        floated="left"
+        content="Reset"
+        onClick={handleReset}
+      />
+      <Button
+        basic
         color="pink"
         floated="left"
         content="Show results"
@@ -410,31 +449,41 @@ export function SearchDisplay(props) {
         icon="checkmark"
         color="green"
         floated="left"
-        onClick={closeHandler}
         content="Close screen"
+        onClick={closeHandler}
       />
-      <pre>&nbsp;</pre>
+      <pre>
+        <br />
+      </pre>
       <Dropdown
-        placeholder="Authors"
+        deburr
+        placeholder="(select on or more authors from this list)"
+        onClick={() => setSelClose(false)}
         fluid
         search
         multiple
         selection
+        open={!selClose}
         value={authChoices}
         options={authorSelOptions}
-        onChange={(ev, data) => setAuthChoices(data.value)}
+        onChange={(ev, data) => {
+          if (ev.type === "keydown" && ev.key === "Enter") {
+            handleSearch();
+          } else setAuthChoices(data.value);
+        }}
       />
 
       <Table striped fixed selectable size="large">
         <Table.Header>
           {authorSearchRes.length ? (
-            <>
-              <Table.Row>
-                <Table.HeaderCell width={2}>Authors:</Table.HeaderCell>
-                <Table.HeaderCell width={4}>Title</Table.HeaderCell>
-                <Table.HeaderCell width={2}>Keywords</Table.HeaderCell>
-              </Table.Row>
-            </>
+            <Table.Row>
+              <Table.HeaderCell collapsing width={1}>
+                No.
+              </Table.HeaderCell>
+              <Table.HeaderCell width={2}>Authors:</Table.HeaderCell>
+              <Table.HeaderCell width={4}>Title</Table.HeaderCell>
+              <Table.HeaderCell width={2}>Keywords</Table.HeaderCell>
+            </Table.Row>
           ) : (
             <Table.Row>
               <Table.HeaderCell>(Result will be shown here)</Table.HeaderCell>
@@ -444,10 +493,12 @@ export function SearchDisplay(props) {
 
         <Table.Body>
           {authorSearchRes.length
-            ? authorSearchRes.map((langlist, lindex) =>
-                langlist.map((entry, index) => (
+            ? authorSearchRes.map((langlist, lindex, asr) => {
+                if (lindex > 0) cumIdx = cumIdx + asr[lindex - 1].length;
+                return langlist.map((entry, index) => (
                   <React.Fragment key={entry.id}>
                     <Table.Row>
+                      <Table.Cell collapsing>{index + 1 + cumIdx}.</Table.Cell>
                       <Table.Cell>{entry.authors}</Table.Cell>
                       <Table.Cell>
                         <Button
@@ -464,11 +515,227 @@ export function SearchDisplay(props) {
                       <Table.Cell>{entry.keywords}</Table.Cell>
                     </Table.Row>
                   </React.Fragment>
-                ))
-              )
+                ));
+              })
             : null}
         </Table.Body>
       </Table>
     </>
   );
+}
+
+export function EditSongDisplay(props) {
+  console.log("--- EditSongDisplay");
+  const closeHandler = props.closeHandler;
+
+  const [state, dispatch] = useContext(SongContext);
+  const songId = state.songId;
+  const songName = state.songName;
+  const songLanguage = state.songLanguage;
+  const [authors, setAuthors] = useState("");
+  const [songKey, setSongKey] = useState("");
+  const [songKeywords, setSongKeywords] = useState("");
+  const [songContent, setSongContent] = useState("");
+
+  const [updateSong] = useMutation(UPDATE_SONG);
+  const [editState, setEditState] = useState("readUpdates");
+  const [changed, setChanged] = useState(false);
+  const [closeAfterSave, setCloseAfterSave] = useState(false);
+
+  const {
+    data: queryData,
+    loading: queryLoading,
+    error: queryError
+  } = useQuery(GET_SONG_CONTENT_BY_ID, {
+    variables: { id: songId },
+    skip: editState !== "readUpdates" && editState !== "waitUpdates",
+    fetchPolicy:
+      editState === "readUpdates" || editState === "waitUpdates"
+        ? "network-only"
+        : "cache-first"
+  });
+
+  const handleSave = () => {
+    if (changed) setEditState("save");
+  };
+
+  const handleSaveClose = () => {
+    if (changed) {
+      setEditState("save");
+      setCloseAfterSave(true);
+    }
+  };
+
+  const handleChange = (setCall, value) => {
+    setCall(value);
+    if (!changed) setChanged(true);
+  };
+
+  console.log("state: " + editState);
+
+  switch (editState) {
+    case "readUpdates":
+      setEditState("waitUpdates");
+
+      if (queryLoading) {
+        return (
+          <div>
+            <Dimmer active inverted>
+              <Loader size="big" inverted>
+                Loading song {songName}...
+              </Loader>
+              <Button
+                basic
+                icon="cancel"
+                color="red"
+                content="Cancel"
+                onClick={() => setEditState("exit")}
+              />
+            </Dimmer>
+          </div>
+        );
+      }
+
+      if (queryError)
+        return (
+          <DatabaseErrorMsg
+            mesg={queryError.message}
+            exitHdlr={() => setEditState("exit")}
+          />
+        );
+      break;
+
+    case "waitUpdates":
+      if (queryError)
+        return (
+          <DatabaseErrorMsg
+            message={queryError.message}
+            exitHdlr={() => setEditState("exit")}
+          />
+        );
+
+      if (queryData) {
+        updateEntryInStore(state.store, queryData.song);
+
+        setAuthors(queryData.song.authors);
+        setSongKey(queryData.song.key);
+        setSongKeywords(queryData.song.keywords);
+        setSongContent(queryData.song.content);
+        setChanged(false);
+        if (closeAfterSave) setEditState("exit");
+        else setEditState("edit");
+      }
+      break;
+
+    case "edit":
+      break;
+
+    case "save":
+      updateSong({
+        variables: {
+          id: songId,
+          authors: authors,
+          key: songKey,
+          keywords: songKeywords,
+          content: songContent
+        }
+      });
+      setEditState("readUpdates");
+      break;
+
+    case "exit":
+      dispatch({
+        type: "selectSongByTitle",
+        payload: { title: songName, language: songLanguage }
+      });
+      closeHandler();
+      break;
+
+    default:
+      console.log("UNEXPECTED CASE");
+      return;
+  }
+
+  if (!queryError) {
+    return (
+      <>
+        <Grid>
+          <Grid.Row columns={1}>
+            <Grid.Column>
+              <Button
+                basic
+                icon="cancel"
+                color="black"
+                floated="left"
+                content="Cancel"
+                onClick={() => setEditState("exit")}
+              />
+              <Button
+                basic
+                icon="save"
+                color={changed ? "pink" : "green"}
+                floated="left"
+                content="Save"
+                onClick={handleSave}
+              />
+              <Button
+                basic
+                icon="save"
+                color={changed ? "pink" : "green"}
+                floated="left"
+                content="Save &amp; Close"
+                onClick={handleSaveClose}
+              />
+            </Grid.Column>
+          </Grid.Row>
+        </Grid>
+        <br></br>
+        <Form size="large">
+          <Form.Group>
+            <Form.Field width={8}>
+              <b>Authors</b>
+              <br />
+              <Input
+                fluid
+                value={authors}
+                onChange={(ev, data) => handleChange(setAuthors, data.value)}
+              />
+            </Form.Field>
+            <Form.Field width={2}>
+              <b>Key</b>
+              <br />
+              <Input
+                fluid
+                value={songKey}
+                onChange={(ev, data) => handleChange(setSongKey, data.value)}
+              />
+            </Form.Field>
+            <Form.Field width={6}>
+              <b>Keywords</b>
+              <br />
+              <Input
+                fluid
+                value={songKeywords}
+                onChange={(ev, data) =>
+                  handleChange(setSongKeywords, data.value)
+                }
+              />
+            </Form.Field>
+          </Form.Group>
+
+          <Form.Field width={16}>
+            <b>Song</b>
+            <br />
+            <TextArea
+              style={{
+                minHeight: Math.floor(window.innerHeight * 0.6)
+              }}
+              value={songContent}
+              onChange={(ev, data) => handleChange(setSongContent, data.value)}
+            />
+          </Form.Field>
+        </Form>
+      </>
+    );
+  } else return null;
 }
