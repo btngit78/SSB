@@ -777,10 +777,10 @@ export default function formatBody(props) {
     if (lines[index].charAt(0) === "#") continue;
 
     // detect explicit verse marker
-    const match = lines[index].match(/verse[\s]*.*:$/i);
+    const vm = lines[index].match(/verse[\s]*.*:$/i);
     if (
-      match != null &&
-      match.index === 0 &&
+      vm != null &&
+      vm.index === 0 &&
       lines[index].charAt(lines[index].length - 1) === ":"
     ) {
       // if there was no empty line before the marker, add one
@@ -796,13 +796,11 @@ export default function formatBody(props) {
     }
 
     // detect chorus section
-    if (
-      lines[index].substring(0, 5).toLowerCase() === "{soc}" ||
-      lines[index].substring(0, 7).toLowerCase() === "chorus:"
-    ) {
+    const cm = lines[index].match(/\{soc\}|chorus[\s]*.*:$/i);
+    if (cm != null && cm.index === 0) {
       // begin of chorus section
       chorusSection = true;
-      if (lines[index].substring(0, 7).toLowerCase() === "chorus:") {
+      if (cm[0].substring(0, 6).toLowerCase() === "chorus") {
         // section should have had a line prior
         manualChorus = true;
       }
@@ -810,7 +808,13 @@ export default function formatBody(props) {
       // if there was no empty line before chorus marker, add one
       if (lines[index - 1] !== "") collectStructText(recLineCB, "", textOnly);
 
-      collectStructText(recLineCB, "Chorus:", textOnly, null, true);
+      collectStructText(
+        recLineCB,
+        manualChorus ? "Chorus ".concat(lines[index].substring(7)) : "Chorus:",
+        textOnly,
+        null,
+        true
+      );
       typeLines[typeLines.length - 1].type = "struct";
 
       // record begin index of chorus section
