@@ -218,6 +218,7 @@ function App() {
 
   const EditSongModal = () => {
     console.log("--- EditSongModal");
+    const [state] = useContext(SongContext);
     const handleClose = () => {
       setEditSongModalOpen(false);
     };
@@ -232,7 +233,7 @@ function App() {
         style={{ width: modalWidthPercent(90) }}
       >
         <Modal.Header style={{ backgroundColor: "#d2f3e1" }}>
-          Edit Song
+          Edit Song:&nbsp;&nbsp;&nbsp;{state.songName}
         </Modal.Header>
         <Modal.Content style={{ textAlign: "left" }}>
           <EditSongDisplay closeHandler={handleClose} />

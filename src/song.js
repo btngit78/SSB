@@ -480,7 +480,7 @@ export function SearchDisplay(props) {
               <Table.HeaderCell collapsing width={1}>
                 No.
               </Table.HeaderCell>
-              <Table.HeaderCell width={2}>Authors:</Table.HeaderCell>
+              <Table.HeaderCell width={2}>Authors</Table.HeaderCell>
               <Table.HeaderCell width={4}>Title</Table.HeaderCell>
               <Table.HeaderCell width={2}>Keywords</Table.HeaderCell>
             </Table.Row>
@@ -535,12 +535,12 @@ export function EditSongDisplay(props) {
   const [authors, setAuthors] = useState("");
   const [songKey, setSongKey] = useState("");
   const [songKeywords, setSongKeywords] = useState("");
+  const [songTempo, setSongTempo] = useState("");
   const [songContent, setSongContent] = useState("");
-
   const [updateSong] = useMutation(UPDATE_SONG);
-  const [editState, setEditState] = useState("readUpdates");
   const [changed, setChanged] = useState(false);
   const [closeAfterSave, setCloseAfterSave] = useState(false);
+  const [editState, setEditState] = useState("readUpdates");
 
   const {
     data: queryData,
@@ -548,11 +548,8 @@ export function EditSongDisplay(props) {
     error: queryError
   } = useQuery(GET_SONG_CONTENT_BY_ID, {
     variables: { id: songId },
-    skip: editState !== "readUpdates" && editState !== "waitUpdates",
-    fetchPolicy:
-      editState === "readUpdates" || editState === "waitUpdates"
-        ? "network-only"
-        : "cache-first"
+    skip: !(editState === "readUpdates"),
+    fetchPolicy: editState === "readUpdates" ? "network-only" : "cache-first"
   });
 
   const handleSave = () => {
@@ -575,27 +572,6 @@ export function EditSongDisplay(props) {
 
   switch (editState) {
     case "readUpdates":
-      setEditState("waitUpdates");
-
-      if (queryLoading) {
-        return (
-          <div>
-            <Dimmer active inverted>
-              <Loader size="big" inverted>
-                Loading song {songName}...
-              </Loader>
-              <Button
-                basic
-                icon="cancel"
-                color="red"
-                content="Cancel"
-                onClick={() => setEditState("exit")}
-              />
-            </Dimmer>
-          </div>
-        );
-      }
-
       if (queryError)
         return (
           <DatabaseErrorMsg
@@ -603,16 +579,16 @@ export function EditSongDisplay(props) {
             exitHdlr={() => setEditState("exit")}
           />
         );
-      break;
 
-    case "waitUpdates":
-      if (queryError)
+      if (queryLoading) {
         return (
-          <DatabaseErrorMsg
-            message={queryError.message}
-            exitHdlr={() => setEditState("exit")}
-          />
+          <Dimmer active inverted>
+            <Loader size="big" inverted>
+              Resyncing song ...
+            </Loader>
+          </Dimmer>
         );
+      }
 
       if (queryData) {
         updateEntryInStore(state.store, queryData.song);
@@ -621,7 +597,7 @@ export function EditSongDisplay(props) {
         setSongKey(queryData.song.key);
         setSongKeywords(queryData.song.keywords);
         setSongContent(queryData.song.content);
-        setChanged(false);
+        setSongTempo(queryData.song.tempo);
         if (closeAfterSave) setEditState("exit");
         else setEditState("edit");
       }
@@ -631,15 +607,21 @@ export function EditSongDisplay(props) {
       break;
 
     case "save":
-      updateSong({
-        variables: {
-          id: songId,
-          authors: authors,
-          key: songKey,
-          keywords: songKeywords,
-          content: songContent
-        }
-      });
+      if (changed) {
+        let t = parseInt(songTempo, 10);
+        updateSong({
+          variables: {
+            id: songId,
+            authors: authors,
+            key: songKey,
+            keywords: songKeywords,
+            tempo: isNaN(t) ? 0 : t,
+            content: songContent
+          }
+        });
+        setChanged(false);
+      }
+
       setEditState("readUpdates");
       break;
 
@@ -656,86 +638,92 @@ export function EditSongDisplay(props) {
       return;
   }
 
-  if (!queryError) {
-    return (
-      <>
-        <Grid>
-          <Grid.Row columns={1}>
-            <Grid.Column>
-              <Button
-                basic
-                icon="cancel"
-                color="black"
-                floated="left"
-                content="Cancel"
-                onClick={() => setEditState("exit")}
-              />
-              <Button
-                basic
-                icon="save"
-                color={changed ? "pink" : "green"}
-                floated="left"
-                content="Save"
-                onClick={handleSave}
-              />
-              <Button
-                basic
-                icon="save"
-                color={changed ? "pink" : "green"}
-                floated="left"
-                content="Save &amp; Close"
-                onClick={handleSaveClose}
-              />
-            </Grid.Column>
-          </Grid.Row>
-        </Grid>
-        <br></br>
-        <Form size="large">
-          <Form.Group>
-            <Form.Field width={8}>
-              <b>Authors</b>
-              <br />
-              <Input
-                fluid
-                value={authors}
-                onChange={(ev, data) => handleChange(setAuthors, data.value)}
-              />
-            </Form.Field>
-            <Form.Field width={2}>
-              <b>Key</b>
-              <br />
-              <Input
-                fluid
-                value={songKey}
-                onChange={(ev, data) => handleChange(setSongKey, data.value)}
-              />
-            </Form.Field>
-            <Form.Field width={6}>
-              <b>Keywords</b>
-              <br />
-              <Input
-                fluid
-                value={songKeywords}
-                onChange={(ev, data) =>
-                  handleChange(setSongKeywords, data.value)
-                }
-              />
-            </Form.Field>
-          </Form.Group>
-
-          <Form.Field width={16}>
-            <b>Song</b>
+  return (
+    <>
+      <Grid>
+        <Grid.Row columns={1}>
+          <Grid.Column>
+            <Button
+              basic
+              icon="cancel"
+              color="black"
+              floated="left"
+              content="Cancel"
+              onClick={() => setEditState("exit")}
+            />
+            <Button
+              basic
+              icon="save"
+              color={changed ? "pink" : "green"}
+              floated="left"
+              content="Save"
+              onClick={handleSave}
+            />
+            <Button
+              basic
+              icon="save"
+              color={changed ? "pink" : "green"}
+              floated="left"
+              content="Save &amp; Close"
+              onClick={handleSaveClose}
+            />
+          </Grid.Column>
+        </Grid.Row>
+      </Grid>
+      <br></br>
+      <Form size="large">
+        <Form.Group>
+          <Form.Field width={7}>
+            <b>Authors</b>
             <br />
-            <TextArea
-              style={{
-                minHeight: Math.floor(window.innerHeight * 0.6)
-              }}
-              value={songContent}
-              onChange={(ev, data) => handleChange(setSongContent, data.value)}
+            <Input
+              fluid
+              value={authors}
+              onChange={(ev, data) => handleChange(setAuthors, data.value)}
             />
           </Form.Field>
-        </Form>
-      </>
-    );
-  } else return null;
+          <Form.Field width={2}>
+            <b>Key</b>
+            <br />
+            <Input
+              fluid
+              value={songKey}
+              onChange={(ev, data) => handleChange(setSongKey, data.value)}
+            />
+          </Form.Field>
+          <Form.Field width={5}>
+            <b>Keywords</b>
+            <br />
+            <Input
+              fluid
+              value={songKeywords}
+              onChange={(ev, data) => handleChange(setSongKeywords, data.value)}
+            />
+          </Form.Field>
+          <Form.Field width={2}>
+            <b>Tempo</b>
+            <br />
+            <Input
+              fluid
+              value={songTempo}
+              onChange={(ev, data) => handleChange(setSongTempo, data.value)}
+            />
+          </Form.Field>
+        </Form.Group>
+
+        <Form.Field width={16}>
+          <b>Song</b>
+          <br />
+          <TextArea
+            style={{
+              minHeight: Math.floor(window.innerHeight * 0.6),
+              fontSize: "1.18em"
+            }}
+            value={songContent}
+            onChange={(ev, data) => handleChange(setSongContent, data.value)}
+          />
+        </Form.Field>
+      </Form>
+    </>
+  );
 }

@@ -35,6 +35,7 @@ const initialState = {
   songKeywords: "",
   songId: "",
   songLanguage: "",
+  songTempo: 0,
   songContent: "",
   noChords: true,
   chordOff: false,
@@ -109,6 +110,7 @@ export const UPDATE_SONG = gql`
     $authors: String
     $key: String
     $keywords: String
+    $tempo: Int
     $content: String!
   ) {
     updateSong(
@@ -118,6 +120,7 @@ export const UPDATE_SONG = gql`
           authors: $authors
           key: $key
           keywords: $keywords
+          tempo: $tempo
           content: $content
         }
       }
@@ -153,6 +156,7 @@ export function songStoreReducer(state, action) {
       authors: songList[index].authors,
       songKey: songList[index].key,
       songKeywords: songList[index].keywords,
+      songTempo: songList[index].tempo,
       songId: songList[index].id,
       songLanguage: songList[index].language,
       songToKey: songList[index].key,
@@ -246,7 +250,10 @@ function installSong(songSets, song) {
     authors: song.authors !== null ? song.authors : "",
     key: song.key !== null ? song.key : "",
     keywords: song.keywords !== null ? song.keywords : "",
-    tempo: song.tempo > 0 ? song.tempo : "",
+    tempo:
+      !song.tempo || song.tempo === "" || song.tempo === "0"
+        ? 0
+        : parseInt(song.tempo, 10),
     id: song.id,
     language: song.language,
     createdAt: song.createdAt,
