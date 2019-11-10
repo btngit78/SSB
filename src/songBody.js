@@ -528,7 +528,7 @@ function transposeStructText(
   // go thru structured text and transpose the chords inline
   // by replacing the old chords with new chords in the map
   // - return nothing
-  function editLines() {
+  function editAllLines() {
     const withinBlock = (idx, A, B) => idx >= A && idx <= B;
 
     typeLines.forEach((tline, index) => {
@@ -618,7 +618,7 @@ function transposeStructText(
     );
   }
 
-  editLines();
+  editAllLines();
   return typeLines;
 }
 
@@ -711,10 +711,17 @@ function mapLinesToDisplayFormat(tlines) {
   return rlines;
 }
 
-// go thru content line by line and transform each line into text for display
-// - return React content for rendering
-export default function formatBody(props) {
-  const state = props.state;
+// parse song content (selected by current state) into the following structures and return 
+// - typeLines: structured line represented by object with (type, line)
+// - primChordMap: all chords in song body collected in a map, except for ...
+// - chorusChordMap: all chords in chorus blocks, also collected in a map, and ...
+// - bridgeChordMap: all chords in bridge blocks, also collected in a map, and ...
+// - codaChordMap: all chords in the coda section (only 1), collected in a map
+// - chorusBlocks: an array of pairs of numbers indicating start-end line indexes of chorus sections
+// - bridgeBlocks: an array of pairs of numbers indicating start-end line indexes of bridge sections
+// - codaBlock: an array of pairs of numbers indicating start-end line indexes of coda section
+//
+function parseSong(state) {
   const textOnly = state.chordOff || state.noChords;
   let lines = [];
   let index = 0;
@@ -734,7 +741,7 @@ export default function formatBody(props) {
 
   const recLineCB = typeLineObj => typeLines.push(typeLineObj);
 
-  console.log("--- formatBody");
+  console.log("--- parseSong");
 
   // extract lines from songContent first
   // then trim front and back spaces
@@ -810,7 +817,7 @@ export default function formatBody(props) {
 
       collectStructText(
         recLineCB,
-        manualChorus ? "Chorus ".concat(lines[index].substring(7)) : "Chorus:",
+        manualChorus ? "Chorus".concat(lines[index].substring(6)) : "Chorus:",
         textOnly,
         null,
         true
@@ -889,7 +896,36 @@ export default function formatBody(props) {
     codaSection = false;
     codaBlock.push(typeLines.length - 1);
   }
-  // console.log(typeLines);
+
+  return {
+    typeLines,
+    primChordMap,
+    chorusChordMap,
+    bridgeChordMap,
+    codaChordMap,
+    chorusBlocks,
+    bridgeBlocks,
+    codaBlock
+  };
+}
+
+// go thru content line by line and transform each line into text for display
+// - return React content for rendering
+export default function songBody(props) {
+  const state = props.state;
+  const textOnly = state.chordOff || state.noChords;
+
+  console.log("--- SongBody");
+  let {
+    typeLines,
+    primChordMap,
+    chorusChordMap,
+    bridgeChordMap,
+    codaChordMap,
+    chorusBlocks,
+    bridgeBlocks,
+    codaBlock
+  } = parseSong(state);
 
   if (!(textOnly || state.fromKey === ""))
     typeLines = transposeStructText(
@@ -905,9 +941,9 @@ export default function formatBody(props) {
       codaBlock
     );
 
-  typeLines = mapLinesToDisplayFormat(typeLines);
-
-  return typeLines.map((typeline, idx) => fmtLine(typeline, idx));
+  return mapLinesToDisplayFormat(typeLines).map((typeline, idx) =>
+    fmtLine(typeline, idx)
+  );
 }
 
 function applyColoringRules(seg) {
@@ -1003,4 +1039,40 @@ function fmtLine(typeLine, idx) {
     default:
       return <br />;
   }
+}
+
+// generate text-format song as string from internal construct after song
+// has been transposed to the targeted key
+// - return song as string ready for display & edit
+export function generateTextFormatForCurrentState(state) {
+  let {
+    typeLines,
+    primChordMap,
+    chorusChordMap,
+    bridgeChordMap,
+    codaChordMap,
+    chorusBlocks,
+    bridgeBlocks,
+    codaBlock
+  } = parseSong(state);
+
+  typeLines = transposeStructText(
+    state.songKey,
+    state.songToKey,
+    typeLines,
+    primChordMap,
+    chorusChordMap,
+    bridgeChordMap,
+    codaChordMap,
+    chorusBlocks,
+    bridgeBlocks,
+    codaBlock
+  );
+
+  let res = "";
+  typeLines.forEach((tline, idx) => {
+    res = idx > 0 ? res.concat("\n", tline.line) : tline.line;
+  });
+  // console.log("Res: ", res);
+  return res;
 }

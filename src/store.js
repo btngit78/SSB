@@ -236,6 +236,19 @@ export function updateEntryInStore(store, song) {
   }
 }
 
+// update safe editable fields only, not ID or title.
+// it's 'in sync' with the overall state because the editor's state is within the app's song-selecting state
+// and thus is safe to do.  if trying to do an update of state via the reducer 'dispatch' call, it will interfere
+// with other editor's state changes, etc.
+export function updateStateInSync(state, song) {
+  state.authors = song.authors;
+  state.songKey = song.key;
+  state.songKeywordss = song.keywords;
+  state.songTempo = song.tempo;
+  state.songToKey = song.key !== "" ? song.key : "";
+  // state.songContent = song.content;
+}
+
 function installSong(songSets, song) {
   let songList;
 

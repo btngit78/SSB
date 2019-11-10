@@ -13,11 +13,11 @@ import {
   Checkbox,
   Modal
 } from "semantic-ui-react";
-import SongDisplay, {
-  RecentlyAddedDisplay,
-  SearchDisplay,
-  EditSongDisplay
-} from "./song";
+import SongDisplay from "./song";
+import { RecentlyAddedDisplay } from "./recents";
+import { SearchDisplay } from "./searchByAuthor";
+import { EditSongDisplay } from "./editSong";
+
 import { setStyle } from "./lib/styling";
 
 import "./app.css";
